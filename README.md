@@ -10,7 +10,8 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 
 All the example script can be found at /example.
 
-```html<!doctype html>
+```html
+<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
