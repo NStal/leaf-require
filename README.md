@@ -27,7 +27,7 @@ All the example script can be found at /example.
   var context;
 
   context = new LeafRequire({
-    root: "./"
+    root: "./test/"
   });
 
   context.use("a.js", "b.js", "c.js", "main.js", "sub/subA.js", "sub/subB.js", "rootA.js");
