@@ -10,23 +10,15 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 
 All the example script can be found at /example.
 
-```html
-<!doctype html>
+```html<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <script type="text/javascript" src="../leafRequire.js"></script>
+    <script type="text/javascript" src="./init.js"></script>
   </head>
   <body>
-    
   </body>
-  <script type="text/javascript">
-    LeafRequire.enableCache = true;
-    LeafRequire.use("./test1.js?version=2","test2.js","test3.js");
-    LeafRequire.init("testMain.js",function(){
-    console.log("every body is loaded!");
-    })    
-  </script>
 </html>
 ```
 
@@ -35,7 +27,7 @@ All the example script can be found at /example.
   var context;
 
   context = new LeafRequire({
-    root: "./test/"
+    root: "./"
   });
 
   context.use("a.js", "b.js", "c.js", "main.js", "sub/subA.js", "sub/subB.js", "rootA.js");
