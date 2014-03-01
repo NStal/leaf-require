@@ -53,7 +53,9 @@ All the example script can be found at /example.
 
 # difference with commonjs module
 ```require("a.js")``` will be /{root}/{requiringScriptPath}/a.js
+
 ```require("/a.js")``` will be /{root}/a.js
+
 ```require("/a")``` will be /{root}/a and then /{root}/a.js
 
 
