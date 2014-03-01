@@ -55,3 +55,12 @@ All the example script can be found at /example.
 ```require("a.js")``` will be /{root}/{requiringScriptPath}/a.js
 ```require("/a.js")``` will be /{root}/a.js
 ```require("/a")``` will be /{root}/a and then /{root}/a.js
+
+
+# test
+Testcase require nodejs and grunt
+```bash
+npm install
+npm test
+```
+and open http://localhost:3000/test/index.html to see the result.
