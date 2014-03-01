@@ -5,8 +5,11 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 ## Feature
 * do what common module do.
 * (TODO) localStorage cache support
+
 ## example
+
 All the example script can be found at /example.
+
 ```html
 <!doctype html>
 <html>
