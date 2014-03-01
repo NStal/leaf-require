@@ -1,18 +1,18 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8" />
-    <script type="text/javascript" src="../leafRequire.js"></script>
+    <meta http-equiv="X-UA-Compatible" content="IE-edge">
+    <title>leaf-require test</title>
+    <link rel="stylesheet" href="http://code.jquery.com/qunit/qunit-1.13.0.css">
+    <script src="http://localhost:35729/livereload.js"></script>
   </head>
   <body>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+    <script type="text/javascript" src="http://code.jquery.com/qunit/qunit-1.13.0.js"></script>
+    <script type="text/javascript" src="../leafRequire.js"></script>
+    <script type="text/javascript" src="./init.js"></script>
     
+    <div id="qunit"></div>
+    <div id="qunit-fixture"></div>
   </body>
-  <script type="text/javascript">
-    LeafRequire.enableCache = true;
-    LeafRequire.use("./test1.js?version=2","test2.js","test3.js");
-    LeafRequire.init("testMain.js",function(){
-    console.log("every body is loaded!");
-    })
-    
-  </script>
 </html>

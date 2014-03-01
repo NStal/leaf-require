@@ -1,0 +1,12 @@
+{
+    "name": "leaf-require",
+    "version": "0.0.0",
+    
+    "scripts": {
+        "test": "grunt test"
+    },
+    "devDependencies": {
+        "grunt-contrib-connect": "*",
+        "grunt-contrib-watch": "*"
+    }
+}

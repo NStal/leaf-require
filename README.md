@@ -1,16 +1,12 @@
-# browser-sync-require
+# leaf-require
 
-A experiment script allow you use node style sync require in browser.
+A experiment lib allow you use nodejs style sync require in browser without precompile ... written in coffee. 
 
 ## Feature
-* cache javascript.
-* do what node module do.
-
-## Todo
-* auto dependency detect
-
+* do what common module do.
+* (TODO) localStorage cache support
 ## example
-
+All the example script can be found at /example.
 ```html
 <!doctype html>
 <html>
@@ -30,86 +26,32 @@ A experiment script allow you use node style sync require in browser.
   </script>
 </html>
 ```
+
 ```javascript
-//test1.js
-exports.callMe = function() {
-  return console.log("Test1.called!");
-};
+  //init.js
+  var context;
 
-console.log("Test1.loaded I'm loaded");
+  context = new LeafRequire({
+    root: "./test/"
+  });
 
-//test2.js
-exports.callMe = function() {
-  return console.log("Test2.called!");
-};
+  context.use("a.js", "b.js", "c.js", "main.js", "sub/subA.js", "sub/subB.js", "rootA.js");
 
-console.log("Test2.loaded I'm loaded");
-
-//test3.js
-exports.callMe = function() {
-  return console.log("Test3.called!");
-};
-
-console.log("Test3.loaded I'm loaded");
-
-//testMain.js
-
-console.log("Main loaded");
-
-console.log("require test1");
-
-test1 = require("test1.js");
-
-console.log("require test2");
-
-test2 = require("test2.js");
-
-console.log("require test3");
-
-test3 = require("test3.js");
-
-test1.callMe();
-
-test2.callMe();
-
-test3.callMe();
-
-console.log("require test1 again");
-
-nextTest1 = require("test1.js");
-
-console.log("nothing should happen..");
-
-console.log("now call next test1")
-nextTest1.callMe();
-
-
+  context.load(function() {
+    console.log("inited");
+    context.require("main.js");
+    // main will require a.js 
+    // a.js will require b.js and c.js
+    // b.js will require a.js
+    
+    context.require("sub/subA.js");
+    // sub/subA.js will require rootA.js
+    // rootA.js will require sub/subB.js
+    // 
+  });
 ```
 
-
-require should be
-```
-fetch ./test1.js 
-fetch test2.js 
-fetch test3.js 
-fetch testMain.js 
-script load ready ./test1.js 
-script load ready test2.js 
-script load ready test3.js 
-script load ready testMain.js 
-every body is loaded! index.html:14
-Main loaded 
-require test1 
-Test1.loaded I'm loaded 
-require test2 
-Test2.loaded I'm loaded 
-require test3 
-Test3.loaded I'm loaded 
-Test1.called! 
-Test2.called! 
-Test3.called! 
-require test1 again 
-nothing should happen.. 
-now call next test1
-Test1.called! 
-```
+# difference with commonjs module
+```require("a.js")``` will be /{root}/{requiringScriptPath}/a.js
+```require("/a.js")``` will be /{root}/a.js
+```require("/a")``` will be /{root}/a and then /{root}/a.js

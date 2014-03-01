@@ -1,106 +1,178 @@
-LeafRequire = {}
-#info = JSON.parse(localStorage.get("leafRequireIndex") or "{}")
-class Script
-    @scripts = []
-    @dict = {}
-    @fullNameDict = {}
-    constructor:(url)->
-        #use url to check version
-        @url = url
+# from http://www.grauw.nl/articles/resolve-uri.html
+`
+/**
+ * Implementation of base URI resolving algorithm in rfc2396.
+ * - Algorithm from section 5.2
+ *   (ignoring difference between undefined and '')
+ * - Regular expression from appendix B
+ * - Tests from appendix C
+ *
+ * @param {string} uri the relative URI to resolve
+ * @param {string} baseuri the base URI (must be absolute) to resolve against
+ */
+
+URI = function(){
+    function resolveUri(sUri, sBaseUri) {
+	if (sUri == '' || sUri.charAt(0) == '#') return sUri;
+	var hUri = getUriComponents(sUri);
+	if (hUri.scheme) return sUri;
+	var hBaseUri = getUriComponents(sBaseUri);
+	hUri.scheme = hBaseUri.scheme;
+	if (!hUri.authority) {
+	    hUri.authority = hBaseUri.authority;
+	    if (hUri.path.charAt(0) != '/') {
+		aUriSegments = hUri.path.split('/');
+		aBaseUriSegments = hBaseUri.path.split('/');
+		aBaseUriSegments.pop();
+		var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
+		for (var i in aUriSegments) {
+		    if (aUriSegments[i] == '..')
+			if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
+		    else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
+		    else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);
+		}
+		if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');
+		hUri.path = aBaseUriSegments.join('/');
+	    }
+	}
+	var result = '';
+	if (hUri.scheme   ) result += hUri.scheme + ':';
+	if (hUri.authority) result += '//' + hUri.authority;
+	if (hUri.path     ) result += hUri.path;
+	if (hUri.query    ) result += '?' + hUri.query;
+	if (hUri.fragment ) result += '#' + hUri.fragment;
+	return result;
+    }
+    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?');
+    function getUriComponents(uri) {
+	var c = uri.match(uriregexp);
+	return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };
+    }
+    var URI = {}
+    URI.resolve = function(base,target){
+        return resolveUri(target,base);
+    }
+    URI.normalize = function(url){
+        return URI.resolve("",url);
+    }
+    return {URI:URI}
+}()`
+class Context
+    @id = 0
+    @instances = []
+    @getContext = (id)->
+        return @instances[id]
+    constructor:(option = {})->
+        @scripts = []
+        @root = option.root or "./"
         @ready = false
-        @fullName = url.replace(/\?.*/ig,"")
-        @exports = null
-        if @fullName.lastIndexOf("/") >= 0
-            @name = @fullName.substring(@fullName.lastIndexOf("/")+1)
+        @id = Context.id++
+        @globalName = "LeafRequire"
+        @useObjectUrl = false
+        Context.instances[@id] = this
+    use:(files...)->
+        for path in files
+            @scripts.push new Script this,path
+    getScript:(path)->
+        for script in @scripts
+            if script.scriptPath is path
+                return script 
+        if path.lastIndexOf(".js") isnt path.length - ".js".length
+            for script in @scripts
+                if script.scriptPath is path+".js"
+                    return script
+        return null
+    getRequire:(path)->
+        script = @getScript(path)
+        return (_path)->
+            return script.require(_path)
+    setRequire:(path,module,exports,__require)->
+        script = @getScript(path)
+        script.setRequire(module,exports,__require)
+    require:(path,fromScript)-> 
+        url = URI.URI
+        if fromScript
+            realPath = url.resolve(fromScript.scriptPath,path)
         else
-            @name = @fullName
-        Script.scripts.push this
-        Script.dict[@name] = this
-        Script.fullNameDict[@fullName] = this
-       
+            realPath = url.normalize(path)
+        if realPath.indexOf("/") is 0
+            realPath = realPath.substring(1)
+        script = @getScript(realPath)
+        if not script
+            console.log @scripts
+            throw new Error "module #{realPath} not found"
+        return script.beRequired()
     load:(callback)->
-        @callback = callback
-        json = JSON.parse(localStorage.getItem("leaf-require-script-#{@name}") or "{}")
-        if LeafRequire.enableCache and json.url is @url
-            console.log "#{@fullName} in cache"
-            @setScript json.script
-        else
-            console.log "fetch #{@fullName}"
-            LeafRequire.getRemoteScript @url,(err,script)=>
+        @scripts.forEach (script)=>
+            script.load (err)=>
                 if err
-                    @callback err
-                    return
-                @setScript(script)
-                @save()
-    _ready:()->
-        if @callback
-            @callback(null,this)
+                    throw new Error "fail to load script #{script.loadPath}"
+                allReady = @scripts.every (item)=>
+                    if not item.isReady
+                        return false
+                    return true
+                if allReady
+                    callback()
+class Script
+    constructor:(@context,@path)->
+        url = URI.URI
+        @scriptPath = url.normalize(@path)
+        @loadPath = url.resolve(@context.root,@path)
+    require:(path)->
+        return @context.require path,this
+    setRequire:(module,exports,__require)->
+        @_module = module
+        @_exports = exports
+        @_require = __require
         @isReady = true
-    save:()->
-        localStorage.setItem("leaf-require-script-#{@name}",@toString())
-    toString:()->
-        JSON.stringify({url:@url,script:@script})
-    require:()->
-        @exports = @_require(@exports)
+        if @_loadCallback
+            @_loadCallback()
+    beRequired:()->
+        if @exports
+            return @exports
+        if @_isRequiring
+            return @_module.exports
+        @_isRequiring = true
+        @_require()
+        @_isRequiring = false
+        if @_exports isnt @_module.exports
+            # changed vai module.exports = xxx
+            @_exports = @_module.exports
+        @exports = @_exports
         return @exports
-    setScript:(script)->
-        @script = script
-        wrapper = """
-LeafRequire.Script.fullNameDict["{fullName}"]._require = function(exports){
-    if(exports) return exports;
-    else exports = {};
-    (function(exports){
-        var global = window;
-        {code};
-    })(exports);
-    return exports;
-}
-LeafRequire.Script.fullNameDict["{fullName}"]._ready()
-    """
-        insertScript = wrapper.replace(/{fullName}/g,@fullName).replace("{code}",@script)
-        @src = URL.createObjectURL(new Blob([insertScript],{type:"text/javascript"}))
-        tag = document.createElement("script")
-        tag.src = @src#+"##{@fullName}"
-        document.body.appendChild tag
-LeafRequire.Script = Script
-LeafRequire.requirements = []
-LeafRequire.use = (args...)->
-    for url in args
-        LeafRequire.requirements.push url
-LeafRequire.getRemoteScript = (url,callback)->
-    xhr = new XMLHttpRequest()
-    xhr.open "GET",url,true
-    xhr.onreadystatechange = ()=>
-        if xhr.readyState is 4
-            callback null,xhr.responseText
-    xhr.send()
-    return xhr
-LeafRequire.require = (name)->
-    script = Script.dict[name] or Script.fullNameDict[name]
-    if not script
-        throw "module #{name} not found"
-    return script.require()
-        
-        
-LeafRequire.init = (entry,callback)->
-    ready = ()=>
-        callback()
-        LeafRequire.require(entry)
-    LeafRequire.entry = entry
-    
-    if entry not in LeafRequire.requirements
-        LeafRequire.requirements.push entry
-    counter = 0
-    total = LeafRequire.requirements.length
-    for url in LeafRequire.requirements
-        _ = new Script(url)
-        _.load (err,script)->
-            console.log "script load ready",script.fullName
-            if err
-                console.error "fail to load script",script
-                throw "fail to load script"
-            counter++
-            if counter is total
-                ready()
-window.LeafRequire = LeafRequire
-window.require = LeafRequire.require
+    load:(callback)->
+        @_loadCallback = callback
+        XHR = new XMLHttpRequest()
+        XHR.open("GET",@loadPath,true)
+        XHR.onreadystatechange = (err)=>
+            if XHR.readyState is 4
+                @parse(XHR.responseText)
+        XHR.send()
+    parse:(scriptContent)->
+        script = document.createElement("script")
+        code = """
+            (function(){
+                var require = #{@context.globalName}.getContext(#{@context.id}).getRequire('#{@scriptPath}')
+                var module = {exports:{}};
+                var exports = module.exports
+                var global = window;
+                var __require = function(){
+
+            // #{@scriptPath}
+            // BY leaf-require
+            #{scriptContent}
+
+                }
+                #{@context.globalName}.getContext(#{@context.id}).setRequire('#{@scriptPath}',module,exports,__require)
+            })()
+            
+        """
+        if @context.useObjectUrl
+            
+            codeObjectUrl = URL.createObjectURL(new Blob [code],{type:"text/javascript"})
+            script.src = codeObjectUrl+"##{@scriptPath}"
+        else
+            script.innerHTML = code
+        document.body.appendChild(script)
+
+window.LeafRequire = Context
