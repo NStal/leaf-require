@@ -23,7 +23,7 @@
     });
     grunt.loadNpmTasks('grunt-contrib-connect');
     grunt.loadNpmTasks('grunt-contrib-watch');
-    return grunt.registerTask('develop', ['connect', 'watch']);
+    return grunt.registerTask('test', ['connect', 'watch']);
   };
 
 }).call(this);

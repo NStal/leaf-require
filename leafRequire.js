@@ -231,18 +231,47 @@ URI = function(){
     };
 
     Script.prototype.parse = function(scriptContent) {
-      var code, codeObjectUrl, script;
+      var code, mapDataUrl, script;
       script = document.createElement("script");
-      code = "(function(){\n    var require = " + this.context.globalName + ".getContext(" + this.context.id + ").getRequire('" + this.scriptPath + "')\n    var module = {exports:{}};\n    var exports = module.exports\n    var global = window;\n    var __require = function(){\n\n// " + this.scriptPath + "\n// BY leaf-require\n" + scriptContent + "\n\n    }\n    " + this.context.globalName + ".getContext(" + this.context.id + ").setRequire('" + this.scriptPath + "',module,exports,__require)\n})()\n";
-      if (this.context.useObjectUrl) {
-        codeObjectUrl = URL.createObjectURL(new Blob([code], {
-          type: "text/javascript"
-        }));
-        script.src = codeObjectUrl + ("#" + this.scriptPath);
-      } else {
-        script.innerHTML = code;
+      code = "(function(){\n    var require = " + this.context.globalName + ".getContext(" + this.context.id + ").getRequire('" + this.scriptPath + "')\n    var module = {exports:{}};\n    var exports = module.exports\n    var global = window;\n    var __require = function(){\n\n// " + this.scriptPath + "\n// BY leaf-require\n" + scriptContent + "\n\n}\n" + this.context.globalName + ".getContext(" + this.context.id + ").setRequire('" + this.scriptPath + "',module,exports,__require)\n\n})()";
+      if (this.context.debug) {
+        mapDataUrl = this.createSourceMapUrl(scriptContent);
+        code += "//# sourceMappingURL=" + mapDataUrl;
       }
+      script.innerHTML = code;
       return document.body.appendChild(script);
+    };
+
+    Script.prototype.createSourceMapUrl = function(content) {
+      var index, line, map, offset, result, url, _, _i, _j, _len, _ref;
+      offset = 9;
+      map = {
+        "version": 3,
+        "file": this.loadPath,
+        "sourceRoot": "",
+        "sources": [this.loadPath],
+        "sourcesContent": [content],
+        "names": [],
+        "mappings": null
+      };
+      result = [];
+      for (_ = _i = 0; 0 <= offset ? _i < offset : _i > offset; _ = 0 <= offset ? ++_i : --_i) {
+        result.push(";");
+      }
+      _ref = content.split("\n");
+      for (index = _j = 0, _len = _ref.length; _j < _len; index = ++_j) {
+        line = _ref[index];
+        if (index === 0) {
+          result.push("AAAA");
+        } else {
+          result.push(";AACA");
+        }
+      }
+      map.mappings = result.join("");
+      url = URL.createObjectURL(new Blob([JSON.stringify(map)], {
+        type: "text/json"
+      }));
+      return url;
     };
 
     return Script;

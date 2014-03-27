@@ -151,28 +151,52 @@ class Script
     parse:(scriptContent)->
         script = document.createElement("script")
         code = """
-            (function(){
-                var require = #{@context.globalName}.getContext(#{@context.id}).getRequire('#{@scriptPath}')
-                var module = {exports:{}};
-                var exports = module.exports
-                var global = window;
-                var __require = function(){
+(function(){
+    var require = #{@context.globalName}.getContext(#{@context.id}).getRequire('#{@scriptPath}')
+    var module = {exports:{}};
+    var exports = module.exports
+    var global = window;
+    var __require = function(){
 
-            // #{@scriptPath}
-            // BY leaf-require
-            #{scriptContent}
+// #{@scriptPath}
+// BY leaf-require
+#{scriptContent}
 
-                }
-                #{@context.globalName}.getContext(#{@context.id}).setRequire('#{@scriptPath}',module,exports,__require)
-            })()
-            
+}
+#{@context.globalName}.getContext(#{@context.id}).setRequire('#{@scriptPath}',module,exports,__require)
+
+})()
         """
-        if @context.useObjectUrl
-            
-            codeObjectUrl = URL.createObjectURL(new Blob [code],{type:"text/javascript"})
-            script.src = codeObjectUrl+"##{@scriptPath}"
-        else
-            script.innerHTML = code
+        if @context.debug
+            mapDataUrl = @createSourceMapUrl(scriptContent)
+            code += """
+    //# sourceMappingURL=#{mapDataUrl}
+        """
+        script.innerHTML = code
         document.body.appendChild(script)
+    createSourceMapUrl:(content)->
+        
+        offset = 9
+        map = {
+            "version" : 3,
+            "file": @loadPath,
+            "sourceRoot": "",
+            "sources": [@loadPath],
+            "sourcesContent": [content],
+            "names": [],
+            "mappings": null
+        }
+        result = []
+        for _ in [0...offset]
+            result.push ";"
+        for line,index in content.split("\n")
+            if index is 0
+                result.push "AAAA"
+            else
+                result.push ";AACA"
+        map.mappings = result.join("")
+        url = URL.createObjectURL new Blob([JSON.stringify(map)],{type:"text/json"})
+        return url
+        
 
 window.LeafRequire = Context
