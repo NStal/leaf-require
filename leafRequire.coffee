@@ -157,7 +157,7 @@ class Script
     var exports = module.exports
     var global = window;
     var __require = function(){
-
+    
 // #{@scriptPath}
 // BY leaf-require
 #{scriptContent}
@@ -197,6 +197,6 @@ class Script
         map.mappings = result.join("")
         url = URL.createObjectURL new Blob([JSON.stringify(map)],{type:"text/json"})
         return url
-        
 
+        
 window.LeafRequire = Context
