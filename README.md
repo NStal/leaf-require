@@ -4,8 +4,9 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 
 ## Feature
 * do what common module do.
-* (TODO) localStorage cache support
-
+* localStorage cache support
+* version support
+* source map support, you will not notice any difference of your code when debug, just like directly include them on the html.
 ## example
 
 All the example script can be found at /example.
@@ -15,7 +16,7 @@ All the example script can be found at /example.
 <html>
   <head>
     <meta charset="UTF-8" />
-    <script type="text/javascript" src="../leafRequire.js"></script>
+    <script type="text/javascript" src="../leaf-require.js"></script>
     <script type="text/javascript" src="./init.js"></script>
   </head>
   <body>
@@ -54,6 +55,15 @@ All the example script can be found at /example.
 
 ```require("/a")``` will be /{root}/a and then /{root}/a.js
 
+# useful features
+
+```javascript
+
+context.enableCache = true  // try load script from local storage first
+context.clearCache()        // clear cache so force an reload
+context.version = "0.0.0"   // different script cached by versions, a version change will force a reload
+context.debug = true        // enable source map feature for easier debug
+```
 
 # test
 Testcase require nodejs and grunt

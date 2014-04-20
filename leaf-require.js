@@ -58,7 +58,7 @@ URI = function(){
     }
     return {URI:URI}
 }();
-  var Context, Script,
+  var Context, Script, exports,
     __slice = [].slice;
 
   Context = (function() {
@@ -80,6 +80,7 @@ URI = function(){
       this.id = Context.id++;
       this.globalName = "LeafRequire";
       this.useObjectUrl = false;
+      this.version = "0.0.0";
       Context.instances[this.id] = this;
     }
 
@@ -170,6 +171,31 @@ URI = function(){
       })(this));
     };
 
+    Context.prototype.clearCache = function() {
+      var index, key, keys, _i, _len, _results;
+      if (!window.localStorage) {
+        return;
+      }
+      keys = (function() {
+        var _i, _ref, _results;
+        _results = [];
+        for (index = _i = 0, _ref = window.localStorage.length; 0 <= _ref ? _i < _ref : _i > _ref; index = 0 <= _ref ? ++_i : --_i) {
+          _results.push(window.localStorage.key(index));
+        }
+        return _results;
+      })();
+      _results = [];
+      for (_i = 0, _len = keys.length; _i < _len; _i++) {
+        key = keys[_i];
+        if (key.indexOf("script/") === 0) {
+          _results.push(window.localStorage.removeItem(key));
+        } else {
+          _results.push(void 0);
+        }
+      }
+      return _results;
+    };
+
     return Context;
 
   })();
@@ -183,6 +209,19 @@ URI = function(){
       this.scriptPath = url.normalize(this.path);
       this.loadPath = url.resolve(this.context.root, this.path);
     }
+
+    Script.prototype._restoreScriptContentFromCache = function() {
+      if (!window.localStorage) {
+        return null;
+      }
+      return window.localStorage.getItem("script/" + this.context.version + "/" + this.loadPath);
+    };
+
+    Script.prototype._saveScriptContentToCache = function(content) {
+      if (window.localStorage) {
+        return window.localStorage.setItem("script/" + this.context.version + "/" + this.loadPath, content);
+      }
+    };
 
     Script.prototype.require = function(path) {
       return this.context.require(path, this);
@@ -216,8 +255,19 @@ URI = function(){
     };
 
     Script.prototype.load = function(callback) {
-      var XHR;
+      var XHR, script;
       this._loadCallback = callback;
+      if (this.context && this.context.enableCache) {
+        script = this._restoreScriptContentFromCache();
+        if (script) {
+          setTimeout(((function(_this) {
+            return function() {
+              return _this.parse(script);
+            };
+          })(this)), 0);
+          return;
+        }
+      }
       XHR = new XMLHttpRequest();
       XHR.open("GET", this.loadPath, true);
       XHR.onreadystatechange = (function(_this) {
@@ -232,8 +282,11 @@ URI = function(){
 
     Script.prototype.parse = function(scriptContent) {
       var code, mapDataUrl, script;
+      if (this.context.enableCache) {
+        this._saveScriptContentToCache(scriptContent);
+      }
       script = document.createElement("script");
-      code = "(function(){\n    var require = " + this.context.globalName + ".getContext(" + this.context.id + ").getRequire('" + this.scriptPath + "')\n    var module = {exports:{}};\n    var exports = module.exports\n    var global = window;\n    var __require = function(){\n\n// " + this.scriptPath + "\n// BY leaf-require\n" + scriptContent + "\n\n}\n" + this.context.globalName + ".getContext(" + this.context.id + ").setRequire('" + this.scriptPath + "',module,exports,__require)\n\n})()";
+      code = "(function(){\n    var require = " + this.context.globalName + ".getContext(" + this.context.id + ").getRequire('" + this.scriptPath + "')\n    var module = {exports:{}};\n    var exports = module.exports\n    var global = window;\n    var __require = function(){\n    \n// " + this.scriptPath + "\n// BY leaf-require\n" + scriptContent + "\n\n}\n" + this.context.globalName + ".getContext(" + this.context.id + ").setRequire('" + this.scriptPath + "',module,exports,__require)\n\n})()";
       if (this.context.debug) {
         mapDataUrl = this.createSourceMapUrl(scriptContent);
         code += "//# sourceMappingURL=" + mapDataUrl;
@@ -278,6 +331,10 @@ URI = function(){
 
   })();
 
-  window.LeafRequire = Context;
+  if (!exports) {
+    exports = window;
+  }
+
+  exports.LeafRequire = Context;
 
 }).call(this);

@@ -69,6 +69,7 @@ class Context
         @id = Context.id++
         @globalName = "LeafRequire"
         @useObjectUrl = false
+        @version = "0.0.0"
         Context.instances[@id] = this
     use:(files...)->
         for path in files
@@ -113,11 +114,26 @@ class Context
                     return true
                 if allReady
                     callback()
+    clearCache:()->
+        if not window.localStorage
+            return
+        keys = (window.localStorage.key(index) for index in [0...window.localStorage.length])
+        for key in keys
+            if key.indexOf("script/") is 0
+                window.localStorage.removeItem key
 class Script
     constructor:(@context,@path)->
         url = URI.URI
         @scriptPath = url.normalize(@path)
         @loadPath = url.resolve(@context.root,@path)
+        
+    _restoreScriptContentFromCache:()->
+        if not window.localStorage
+            return null
+        return window.localStorage.getItem "script/"+@context.version+"/"+@loadPath
+    _saveScriptContentToCache:(content)->
+        if window.localStorage
+            window.localStorage.setItem "script/"+@context.version+"/"+@loadPath,content
     require:(path)->
         return @context.require path,this
     setRequire:(module,exports,__require)->
@@ -142,6 +158,13 @@ class Script
         return @exports
     load:(callback)->
         @_loadCallback = callback
+        if @context and @context.enableCache
+            script = @_restoreScriptContentFromCache()
+            if script
+                setTimeout (()=>
+                    @parse script
+                    ),0
+                return
         XHR = new XMLHttpRequest()
         XHR.open("GET",@loadPath,true)
         XHR.onreadystatechange = (err)=>
@@ -149,6 +172,8 @@ class Script
                 @parse(XHR.responseText)
         XHR.send()
     parse:(scriptContent)->
+        if @context.enableCache
+            @_saveScriptContentToCache(scriptContent)
         script = document.createElement("script")
         code = """
 (function(){
@@ -197,6 +222,6 @@ class Script
         map.mappings = result.join("")
         url = URL.createObjectURL new Blob([JSON.stringify(map)],{type:"text/json"})
         return url
-
-        
-window.LeafRequire = Context
+if not exports
+    exports = window
+exports.LeafRequire = Context
