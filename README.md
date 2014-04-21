@@ -7,6 +7,7 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 * localStorage cache support
 * version support
 * source map support, you will not notice any difference of your code when debug, just like directly include them on the html.
+
 ## example
 
 All the example script can be found at /example.
