@@ -1,0 +1,42 @@
+{
+    "name": "leaf-require",
+    "js": {
+        "main": "index.js",
+        "root": "js/",
+        "files": [
+            {
+                "path": "ana.js",
+                "hash": "8f1b67"
+            },
+            {
+                "path": "bob.js",
+                "hash": "40bc95"
+            },
+            {
+                "path": "index.js",
+                "hash": "672fa5"
+            },
+            {
+                "path": "init.js",
+                "hash": "626cf2"
+            },
+            {
+                "path": "initWithConfig.js",
+                "hash": "627428"
+            },
+            {
+                "path": "root.js",
+                "hash": "c07463"
+            },
+            {
+                "path": "sub/madoka.js",
+                "hash": "f6d95f"
+            },
+            {
+                "path": "sub/qubi.js",
+                "hash": "08dfbb"
+            }
+        ]
+    },
+    "debug": true
+}

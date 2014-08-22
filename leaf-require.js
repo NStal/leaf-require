@@ -70,6 +70,23 @@ URI = function(){
       return this.instances[id];
     };
 
+    Context._httpGet = function(url, callback) {
+      var XHR;
+      XHR = new XMLHttpRequest();
+      XHR.open("GET", url, true);
+      XHR.onreadystatechange = (function(_this) {
+        return function(err) {
+          if (XHR.readyState === 4) {
+            callback(null, XHR.responseText);
+          }
+          if (XHR.readyState === 0) {
+            return callback(new Error("Network Error"));
+          }
+        };
+      })(this);
+      return XHR.send();
+    };
+
     function Context(option) {
       if (option == null) {
         option = {};
@@ -82,16 +99,17 @@ URI = function(){
       this.useObjectUrl = false;
       this.version = "0.0.0";
       Context.instances[this.id] = this;
-      this.localStoragePrefix = "leaf/script/";
+      this.localStoragePrefix = "leaf-require";
     }
 
     Context.prototype.use = function() {
-      var files, path, _i, _len, _results;
+      var file, files, _i, _len, _results;
       files = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
       _results = [];
       for (_i = 0, _len = files.length; _i < _len; _i++) {
-        path = files[_i];
-        _results.push(this.scripts.push(new Script(this, path)));
+        file = files[_i];
+        console.log("use", file.path || file);
+        _results.push(this.scripts.push(new Script(this, file)));
       }
       return _results;
     };
@@ -117,11 +135,56 @@ URI = function(){
       return null;
     };
 
-    Context.prototype.getLastVersion = function() {
-      if (!window.localStorage) {
-        return null;
+    Context.prototype.setConfig = function(config, callback) {
+      var e;
+      if (typeof config === "string") {
+        return this.setConfigRemote(config, callback);
+      } else {
+        try {
+          this.setConfigSync(config);
+          return callback();
+        } catch (_error) {
+          e = _error;
+          return callback(e);
+        }
       }
-      return window.localStorage.getItem(this.localStoragePrefix + "version");
+    };
+
+    Context.prototype.setConfigSync = function(config) {
+      var file, files, _i, _len;
+      config.js = config.js || {};
+      files = config.js.files || [];
+      this.root = config.js.root || this.root;
+      for (_i = 0, _len = files.length; _i < _len; _i++) {
+        file = files[_i];
+        this.use(file);
+      }
+      this.name = config.name;
+      this.localStoragePrefix = this.name;
+      this.mainModule = config.js.main || null;
+      this.debug = config.debug || this.debug;
+      return this.enableCache = config.cache || this.enableCache;
+    };
+
+    Context.prototype.setConfigRemote = function(src, callback) {
+      return Context._httpGet(src, (function(_this) {
+        return function(err, content) {
+          var config, e;
+          if (err) {
+            console.error(err);
+            callback(new Error("fail to get configs " + src + " due to network error"));
+            return;
+          }
+          try {
+            config = JSON.parse(content);
+            _this.setConfigSync(config);
+            return callback(null);
+          } catch (_error) {
+            e = _error;
+            return callback(e);
+          }
+        };
+      })(this));
     };
 
     Context.prototype.getRequire = function(path) {
@@ -171,6 +234,9 @@ URI = function(){
               return true;
             });
             if (allReady) {
+              if (_this.mainModule) {
+                _this.require(_this.mainModule);
+              }
               return callback();
             }
           });
@@ -203,33 +269,79 @@ URI = function(){
       return _results;
     };
 
+    Context.prototype.prepareCache = function() {
+      var cache, e;
+      if (!window.localStorage) {
+        this.cache = {};
+        return;
+      }
+      if (this.cache) {
+        return;
+      }
+      cache = window.localStorage.getItem("" + this.localStoragePrefix + "/cache") || "{}";
+      try {
+        this.cache = JSON.parse(cache);
+      } catch (_error) {
+        e = _error;
+        this.cache = {};
+      }
+    };
+
+    Context.prototype.saveCache = function() {
+      var cache;
+      if (!window.localStorage) {
+        return;
+      }
+      cache = this.cache || {};
+      return window.localStorage.setItem("" + this.localStoragePrefix + "/cache", JSON.stringify(cache));
+    };
+
+    Context.prototype.saveCacheDelay = function() {
+      if (this._saveCacheDelayTimer) {
+        clearTimeout(this._saveCacheDelayTimer);
+      }
+      return this._saveCacheDelayTimer = setTimeout(((function(_this) {
+        return function() {
+          return _this.saveCache();
+        };
+      })(this)), 0);
+    };
+
     return Context;
 
   })();
 
   Script = (function() {
-    function Script(context, path) {
+    function Script(context, file) {
       var url;
       this.context = context;
-      this.path = path;
       url = URI.URI;
+      if (typeof file === "string") {
+        this.path = file;
+      } else {
+        this.path = file.path;
+        this.version = file.version || file.hash || null;
+      }
       this.scriptPath = url.normalize(this.path);
       this.loadPath = url.resolve(this.context.root, this.path);
     }
 
     Script.prototype._restoreScriptContentFromCache = function() {
-      if (!window.localStorage) {
-        return null;
-      }
-      return window.localStorage.getItem(this.context.localStoragePrefix + this.context.version + "/" + this.loadPath);
+      var files;
+      this.context.prepareCache();
+      files = this.context.cache.files || {};
+      return files[this.path];
     };
 
     Script.prototype._saveScriptContentToCache = function(content) {
-      if (!window.localStorage) {
-        return null;
-      }
-      window.localStorage.setItem(this.context.localStoragePrefix + "version", this.context.version);
-      return window.localStorage.setItem(this.context.localStoragePrefix + this.context.version + "/" + this.loadPath, content);
+      var files;
+      this.context.prepareCache();
+      files = this.context.cache.files = this.context.cache.files || {};
+      files[this.path] = {
+        hash: this.hash,
+        content: content
+      };
+      return this.context.saveCacheDelay();
     };
 
     Script.prototype.require = function(path) {
@@ -264,29 +376,28 @@ URI = function(){
     };
 
     Script.prototype.load = function(callback) {
-      var XHR, script;
+      var file;
       this._loadCallback = callback;
       if (this.context && this.context.enableCache) {
-        script = this._restoreScriptContentFromCache();
-        if (script) {
+        file = this._restoreScriptContentFromCache();
+        if (file && file.content && !(this.version && this.version !== file.version)) {
           setTimeout(((function(_this) {
             return function() {
-              return _this.parse(script);
+              return _this.parse(file.content);
             };
           })(this)), 0);
           return;
         }
       }
-      XHR = new XMLHttpRequest();
-      XHR.open("GET", this.loadPath, true);
-      XHR.onreadystatechange = (function(_this) {
-        return function(err) {
-          if (XHR.readyState === 4) {
-            return _this.parse(XHR.responseText);
+      return Context._httpGet(this.loadPath, (function(_this) {
+        return function(err, content) {
+          if (err) {
+            console.error(err);
+            throw new Error("fail to get " + _this.loadPath);
           }
+          return _this.parse(content);
         };
-      })(this);
-      return XHR.send();
+      })(this));
     };
 
     Script.prototype.parse = function(scriptContent) {

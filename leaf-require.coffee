@@ -62,6 +62,16 @@ class Context
     @instances = []
     @getContext = (id)->
         return @instances[id]
+    @_httpGet = (url,callback)->
+        XHR = new XMLHttpRequest()
+        XHR.open("GET",url,true)
+        XHR.onreadystatechange = (err)=>
+            if XHR.readyState is 4
+                callback null,XHR.responseText
+            if XHR.readyState is 0
+                callback new Error "Network Error"
+        XHR.send()
+
     constructor:(option = {})->
         @scripts = []
         @root = option.root or "./"
@@ -71,10 +81,11 @@ class Context
         @useObjectUrl = false
         @version = "0.0.0"
         Context.instances[@id] = this
-        @localStoragePrefix = "leaf/script/"
+        @localStoragePrefix = "leaf-require"
     use:(files...)->
-        for path in files
-            @scripts.push new Script this,path
+        for file in files
+            console.log "use",file.path or file
+            @scripts.push new Script this,file
     getScript:(path)->
         for script in @scripts
             if script.scriptPath is path
@@ -84,10 +95,39 @@ class Context
                 if script.scriptPath is path+".js"
                     return script
         return null
-    getLastVersion:()->
-        if not window.localStorage
-            return null
-        return window.localStorage.getItem(@localStoragePrefix+"version");
+    setConfig:(config,callback)->
+        if typeof config is "string"
+            @setConfigRemote config,callback
+        else
+            try
+                @setConfigSync(config)
+                callback()
+            catch e 
+                callback(e)
+        
+    setConfigSync:(config)->
+        config.js = config.js or {}
+        files = config.js.files or []
+        @root = config.js.root or @root
+        for file in files
+            @use file
+        @name = config.name
+        @localStoragePrefix = @name
+        @mainModule = config.js.main or null
+        @debug = config.debug or @debug
+        @enableCache = config.cache or @enableCache
+    setConfigRemote:(src,callback)->
+        Context._httpGet src,(err,content)=>
+            if err
+                console.error err
+                callback new Error "fail to get configs #{src} due to network error"
+                return
+            try
+                config = JSON.parse content
+                @setConfigSync config
+                callback null
+            catch e
+                callback e
     getRequire:(path)->
         script = @getScript(path)
         return (_path)->
@@ -117,6 +157,8 @@ class Context
                         return false
                     return true
                 if allReady
+                    if @mainModule
+                        @require @mainModule
                     callback()
     clearCache:(version)->
         if not window.localStorage
@@ -125,22 +167,51 @@ class Context
         for key in keys
             if key.indexOf(@localStoragePrefix) is 0
                 window.localStorage.removeItem key
+    prepareCache:()->
+        if not window.localStorage
+            @cache = {}
+            return
+        if @cache
+            return
+        cache = window.localStorage.getItem("#{@localStoragePrefix}/cache") or "{}"
+        try
+            @cache = JSON.parse cache
+        catch e
+            @cache = {}
+        return
+    saveCache:()->
+        if not window.localStorage
+            return
+        cache = @cache or {}
+        window.localStorage.setItem "#{@localStoragePrefix}/cache",JSON.stringify cache
+    saveCacheDelay:()->
+        if @_saveCacheDelayTimer
+            clearTimeout @_saveCacheDelayTimer
+        @_saveCacheDelayTimer = setTimeout (()=>
+            @saveCache()
+            ),0
 class Script
-    constructor:(@context,@path)->
+    constructor:(@context,file)->
         url = URI.URI
+        if typeof file is "string"
+            @path = file
+        else
+            @path = file.path
+            @version = file.version or file.hash or null
         @scriptPath = url.normalize(@path)
         @loadPath = url.resolve(@context.root,@path)
-        
     _restoreScriptContentFromCache:()->
-        if not window.localStorage
-            return null
-        
-        return window.localStorage.getItem @context.localStoragePrefix + @context.version+"/"+@loadPath
+        @context.prepareCache()
+        files = @context.cache.files or {}
+        return files[@path]
     _saveScriptContentToCache:(content)->
-        if not window.localStorage
-            return null
-        window.localStorage.setItem @context.localStoragePrefix + "version",@context.version
-        window.localStorage.setItem @context.localStoragePrefix + @context.version+"/"+@loadPath,content
+        @context.prepareCache()
+        files = @context.cache.files = @context.cache.files or {}
+        files[@path] = {
+            hash:@hash
+            content:content
+        }
+        @context.saveCacheDelay()
     require:(path)->
         return @context.require path,this
     setRequire:(module,exports,__require)->
@@ -166,18 +237,19 @@ class Script
     load:(callback)->
         @_loadCallback = callback
         if @context and @context.enableCache
-            script = @_restoreScriptContentFromCache()
-            if script
+            file = @_restoreScriptContentFromCache()
+            # has file, has content and
+            if file and file.content and not (@version and @version isnt file.version)
                 setTimeout (()=>
-                    @parse script
+                    @parse file.content
                     ),0
                 return
-        XHR = new XMLHttpRequest()
-        XHR.open("GET",@loadPath,true)
-        XHR.onreadystatechange = (err)=>
-            if XHR.readyState is 4
-                @parse(XHR.responseText)
-        XHR.send()
+        Context._httpGet @loadPath,(err,content)=>
+            
+            if err
+                console.error err
+                throw new Error "fail to get #{@loadPath}"
+            @parse content
     parse:(scriptContent)->
         if @context.enableCache
             @_saveScriptContentToCache(scriptContent)
