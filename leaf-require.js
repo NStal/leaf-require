@@ -82,6 +82,7 @@ URI = function(){
       this.useObjectUrl = false;
       this.version = "0.0.0";
       Context.instances[this.id] = this;
+      this.localStoragePrefix = "leaf/script/";
     }
 
     Context.prototype.use = function() {
@@ -116,6 +117,13 @@ URI = function(){
       return null;
     };
 
+    Context.prototype.getLastVersion = function() {
+      if (!window.localStorage) {
+        return null;
+      }
+      return window.localStorage.getItem(this.localStoragePrefix + "version");
+    };
+
     Context.prototype.getRequire = function(path) {
       var script;
       script = this.getScript(path);
@@ -143,7 +151,6 @@ URI = function(){
       }
       script = this.getScript(realPath);
       if (!script) {
-        console.log(this.scripts);
         throw new Error("module " + realPath + " not found");
       }
       return script.beRequired();
@@ -171,7 +178,7 @@ URI = function(){
       })(this));
     };
 
-    Context.prototype.clearCache = function() {
+    Context.prototype.clearCache = function(version) {
       var index, key, keys, _i, _len, _results;
       if (!window.localStorage) {
         return;
@@ -187,7 +194,7 @@ URI = function(){
       _results = [];
       for (_i = 0, _len = keys.length; _i < _len; _i++) {
         key = keys[_i];
-        if (key.indexOf("script/") === 0) {
+        if (key.indexOf(this.localStoragePrefix) === 0) {
           _results.push(window.localStorage.removeItem(key));
         } else {
           _results.push(void 0);
@@ -214,13 +221,15 @@ URI = function(){
       if (!window.localStorage) {
         return null;
       }
-      return window.localStorage.getItem("script/" + this.context.version + "/" + this.loadPath);
+      return window.localStorage.getItem(this.context.localStoragePrefix + this.context.version + "/" + this.loadPath);
     };
 
     Script.prototype._saveScriptContentToCache = function(content) {
-      if (window.localStorage) {
-        return window.localStorage.setItem("script/" + this.context.version + "/" + this.loadPath, content);
+      if (!window.localStorage) {
+        return null;
       }
+      window.localStorage.setItem(this.context.localStoragePrefix + "version", this.context.version);
+      return window.localStorage.setItem(this.context.localStoragePrefix + this.context.version + "/" + this.loadPath, content);
     };
 
     Script.prototype.require = function(path) {

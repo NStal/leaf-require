@@ -8,14 +8,21 @@
 
   context.debug = true;
 
+  context.enableCache = true;
+
   context.use("index.js", "ana.js", "bob.js");
 
   context.use("root.js", "sub/qubi.js", "sub/madoka.js");
 
+  context.version = Math.random().toString();
+
   context.load(function() {
     console.log("loaded");
     context.require("index.js");
-    return context.require("root.js");
+    context.require("root.js");
+    return test("shoudl be able to get latest version", function() {
+      return ok(context.getLastVersion() === context.version);
+    });
   });
 
 }).call(this);

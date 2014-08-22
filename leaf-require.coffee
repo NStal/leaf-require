@@ -71,6 +71,7 @@ class Context
         @useObjectUrl = false
         @version = "0.0.0"
         Context.instances[@id] = this
+        @localStoragePrefix = "leaf/script/"
     use:(files...)->
         for path in files
             @scripts.push new Script this,path
@@ -83,6 +84,10 @@ class Context
                 if script.scriptPath is path+".js"
                     return script
         return null
+    getLastVersion:()->
+        if not window.localStorage
+            return null
+        return window.localStorage.getItem(@localStoragePrefix+"version");
     getRequire:(path)->
         script = @getScript(path)
         return (_path)->
@@ -100,7 +105,6 @@ class Context
             realPath = realPath.substring(1)
         script = @getScript(realPath)
         if not script
-            console.log @scripts
             throw new Error "module #{realPath} not found"
         return script.beRequired()
     load:(callback)->
@@ -114,12 +118,12 @@ class Context
                     return true
                 if allReady
                     callback()
-    clearCache:()->
+    clearCache:(version)->
         if not window.localStorage
             return
         keys = (window.localStorage.key(index) for index in [0...window.localStorage.length])
         for key in keys
-            if key.indexOf("script/") is 0
+            if key.indexOf(@localStoragePrefix) is 0
                 window.localStorage.removeItem key
 class Script
     constructor:(@context,@path)->
@@ -130,10 +134,13 @@ class Script
     _restoreScriptContentFromCache:()->
         if not window.localStorage
             return null
-        return window.localStorage.getItem "script/"+@context.version+"/"+@loadPath
+        
+        return window.localStorage.getItem @context.localStoragePrefix + @context.version+"/"+@loadPath
     _saveScriptContentToCache:(content)->
-        if window.localStorage
-            window.localStorage.setItem "script/"+@context.version+"/"+@loadPath,content
+        if not window.localStorage
+            return null
+        window.localStorage.setItem @context.localStoragePrefix + "version",@context.version
+        window.localStorage.setItem @context.localStoragePrefix + @context.version+"/"+@loadPath,content
     require:(path)->
         return @context.require path,this
     setRequire:(module,exports,__require)->
