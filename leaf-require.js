@@ -163,10 +163,19 @@ URI = function(){
       this.localStoragePrefix = this.name;
       this.mainModule = config.js.main || null;
       this.debug = config.debug || this.debug;
-      return this.enableCache = config.cache || this.enableCache;
+      return this.enableCache = config.cache || this.enableCache || node(this.debug || false);
     };
 
     Context.prototype.setConfigRemote = function(src, callback) {
+      if (this.enableCache) {
+        this.prepareCache();
+        this.cache.config = this.cache.config || {};
+        if (this.cache.config[src]) {
+          this.setConfigSync(JSON.parse(this.cache.config[src]));
+          callback(null);
+          return;
+        }
+      }
       return Context._httpGet(src, (function(_this) {
         return function(err, content) {
           var config, e;
@@ -178,6 +187,11 @@ URI = function(){
           try {
             config = JSON.parse(content);
             _this.setConfigSync(config);
+            if (_this.enableCache) {
+              _this.prepareCache();
+              _this.cache.config = _this.cache.config;
+              _this.cache.config[src] = content;
+            }
             return callback(null);
           } catch (_error) {
             e = _error;
@@ -381,6 +395,7 @@ URI = function(){
       if (this.context && this.context.enableCache) {
         file = this._restoreScriptContentFromCache();
         if (file && file.content && !(this.version && this.version !== file.version)) {
+          console.debug("" + this.loadPath + " from cache");
           setTimeout(((function(_this) {
             return function() {
               return _this.parse(file.content);

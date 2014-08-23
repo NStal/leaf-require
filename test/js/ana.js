@@ -6,12 +6,13 @@
 
   exports.name = "ana";
 
-  test("require a module at same folder with a required module", function() {
+  it("require a module at same folder with a required module", function(done) {
     counter++;
     if (counter === 2) {
       throw new Error("recursive require");
     }
-    return ok(require("bob.js").name === "bob");
+    console.assert(require("bob.js").name === "bob");
+    return done();
   });
 
 }).call(this);

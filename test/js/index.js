@@ -2,8 +2,9 @@
 (function() {
   window.mainLoaded = true;
 
-  it("require a module from the same folder", function() {
-    return ok(require("ana.js").name === "ana");
+  it("require a module from the same folder", function(done) {
+    console.assert(require("ana.js").name === "ana");
+    return done();
   });
 
 }).call(this);

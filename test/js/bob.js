@@ -2,8 +2,9 @@
 (function() {
   exports.name = "bob";
 
-  test("require a module who required me", function() {
-    return ok(require("ana.js").name === "ana");
+  it("require a module who required me", function(done) {
+    console.assert(require("ana.js").name === "ana");
+    return done();
   });
 
 }).call(this);

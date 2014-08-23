@@ -115,8 +115,15 @@ class Context
         @localStoragePrefix = @name
         @mainModule = config.js.main or null
         @debug = config.debug or @debug
-        @enableCache = config.cache or @enableCache
+        @enableCache = config.cache or @enableCache or node @debug or false
     setConfigRemote:(src,callback)->
+        if @enableCache
+            @prepareCache()
+            @cache.config = @cache.config or {}
+            if @cache.config[src]
+                @setConfigSync JSON.parse @cache.config[src]
+                callback null
+                return
         Context._httpGet src,(err,content)=>
             if err
                 console.error err
@@ -125,6 +132,11 @@ class Context
             try
                 config = JSON.parse content
                 @setConfigSync config
+                
+                if @enableCache
+                    @prepareCache()
+                    @cache.config = @cache.config
+                    @cache.config[src] = content
                 callback null
             catch e
                 callback e
@@ -240,6 +252,7 @@ class Script
             file = @_restoreScriptContentFromCache()
             # has file, has content and
             if file and file.content and not (@version and @version isnt file.version)
+                console.debug "#{@loadPath} from cache"
                 setTimeout (()=>
                     @parse file.content
                     ),0
