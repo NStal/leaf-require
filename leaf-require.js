@@ -392,6 +392,10 @@ URI = function(){
     Script.prototype.load = function(callback) {
       var file;
       this._loadCallback = callback;
+      if (this.isReady) {
+        callback();
+        return;
+      }
       if (this.context && this.context.enableCache) {
         file = this._restoreScriptContentFromCache();
         if (file && file.content && !(this.version && this.version !== file.version)) {
@@ -417,6 +421,9 @@ URI = function(){
 
     Script.prototype.parse = function(scriptContent) {
       var code, mapDataUrl, script;
+      if (this.script) {
+        null;
+      }
       if (this.context.enableCache) {
         this._saveScriptContentToCache(scriptContent);
       }
@@ -426,6 +433,7 @@ URI = function(){
         mapDataUrl = this.createSourceMapUrl(scriptContent);
         code += "//# sourceMappingURL=" + mapDataUrl;
       }
+      this.script = script;
       script.innerHTML = code;
       return document.body.appendChild(script);
     };

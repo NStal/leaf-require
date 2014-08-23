@@ -248,6 +248,9 @@ class Script
         return @exports
     load:(callback)->
         @_loadCallback = callback
+        if @isReady
+            callback()
+            return
         if @context and @context.enableCache
             file = @_restoreScriptContentFromCache()
             # has file, has content and
@@ -264,6 +267,8 @@ class Script
                 throw new Error "fail to get #{@loadPath}"
             @parse content
     parse:(scriptContent)->
+        if @script
+            null
         if @context.enableCache
             @_saveScriptContentToCache(scriptContent)
         script = document.createElement("script")
@@ -289,6 +294,7 @@ class Script
             code += """
     //# sourceMappingURL=#{mapDataUrl}
         """
+        @script = script
         script.innerHTML = code
         document.body.appendChild(script)
     createSourceMapUrl:(content)->
