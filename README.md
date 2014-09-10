@@ -89,50 +89,33 @@ require.json may looks like below, // is invalid for json, so don't add them to 
 {
     "name": "leaf-require",
     "js": {
-        "root": "./",  // request root, togather with the file path we generate the request url
+        "root": "./test/",  // request root, togather with the file path we generate the request url
         "files": [
             {
                 //remote file path and local require path as well
-                "path": "init.js", 
-                // optional a hash to the file so if hash not modified and cache is enabled 
+                "path": "a.js",
                 // we will try to load scripts from localStorage
-                "hash": "2ba20d" 
-            },
-            {
-                "path": "main.js",
-                "hash": "13338a"
-            },
-            {
-                "path": "rootA.js",
-                "hash": "f54367"
-            },
-            {
-                "path": "test/a.js",
                 "hash": "2859bc"
             },
             {
-                "path": "test/b.js",
+                "path": "b.js",
                 "hash": "24cbd7"
             },
             {
-                "path": "test/c.js",
+                "path": "c.js",
                 "hash": "472654"
             },
             {
-                "path": "test/main.js",
+                "path": "main.js",
                 "hash": "413b74"
             },
             {
-                "path": "test/rootA.js",
+                "path": "rootA.js",
                 "hash": "8285bf"
             },
             {
-                "path": "test/sub/subA.js",
+                "path": "sub/subA.js",
                 "hash": "62a110"
-            },
-            {
-                "path": "test/sub/subB.js",
-                "hash": "4a748f"
             }
         ]
     },
@@ -150,7 +133,7 @@ You can easily generate this config by using leafjs-util. You can generate the a
 sudo npm install -g leafjs-util
 
 leafjs-require -h   # print the help message
-leafjs-require ./ --excludes ./lib --enable-debug -r "./"
+leafjs-require ./test/ --enable-debug -r "./test/"
 # The config will be print to stdout.
 # You can also use -o option to specify a file to store it.
 # Note, if -o with an exists file, leafjs-require 
