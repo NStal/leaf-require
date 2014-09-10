@@ -116,7 +116,12 @@ require.json may looks like below, // is invalid for json, so don't add them to 
             {
                 "path": "sub/subA.js",
                 "hash": "62a110"
+            },
+            {
+                "path": "sub/subB.js",
+                "hash": "4a748f"
             }
+
         ]
     },
     // enable debug mode, currently just for source map
