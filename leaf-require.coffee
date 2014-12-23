@@ -115,7 +115,8 @@ class Context
         @localStoragePrefix = @name
         @mainModule = config.js.main or null
         @debug = config.debug or @debug
-        @enableCache = config.cache or @enableCache or node @debug or false
+        @enableCache = config.cache or @enableCache or not @debug or false
+        @version = config.version or @version or "0.0.0"
         if @enableCache
             @prepareCache()
             @cache.config = config
@@ -210,17 +211,18 @@ class Script
             @path = file
         else
             @path = file.path
-            @version = file.version or file.hash or null
+            @hash = file.hash or null
         @scriptPath = url.normalize(@path)
         @loadPath = url.resolve(@context.root,@path)
     _restoreScriptContentFromCache:()->
         @context.prepareCache()
         files = @context.cache.files or {}
-        return files[@path]
+        return files[@loadPath]
     _saveScriptContentToCache:(content)->
         @context.prepareCache()
+        console.debug "save to #{@loadPath} with hash #{@hash} ??"
         files = @context.cache.files = @context.cache.files or {}
-        files[@path] = {
+        files[@loadPath] = {
             hash:@hash
             content:content
         }
@@ -254,8 +256,11 @@ class Script
             return
         if @context and @context.enableCache
             file = @_restoreScriptContentFromCache()
+            console.debug "try restore #{@loadPath} from cache",file
+            console.debug @hash,file and file.hash
             # has file, has content and
             if file and file.content and not (@version and @version isnt file.version)
+                console.debug "cache found and do the restore"
                 console.debug "#{@loadPath} from cache"
                 setTimeout (()=>
                     @parse file.content

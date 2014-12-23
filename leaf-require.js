@@ -163,19 +163,26 @@ URI = function(){
       this.localStoragePrefix = this.name;
       this.mainModule = config.js.main || null;
       this.debug = config.debug || this.debug;
-      return this.enableCache = config.cache || this.enableCache || node(this.debug || false);
+      this.enableCache = config.cache || this.enableCache || !this.debug || false;
+      this.version = config.version || this.version || "0.0.0";
+      if (this.enableCache) {
+        this.prepareCache();
+        this.cache.config = config;
+        return this.saveCache();
+      }
+    };
+
+    Context.prototype.loadWithConfigFromCache = function(callback) {
+      this.prepareCache();
+      if (!this.cache.config) {
+        callback(new Error("no config cache available"));
+        return;
+      }
+      this.setConfigSync(this.cache.config);
+      return this.load(callback);
     };
 
     Context.prototype.setConfigRemote = function(src, callback) {
-      if (this.enableCache) {
-        this.prepareCache();
-        this.cache.config = this.cache.config || {};
-        if (this.cache.config[src]) {
-          this.setConfigSync(JSON.parse(this.cache.config[src]));
-          callback(null);
-          return;
-        }
-      }
       return Context._httpGet(src, (function(_this) {
         return function(err, content) {
           var config, e;
@@ -187,11 +194,6 @@ URI = function(){
           try {
             config = JSON.parse(content);
             _this.setConfigSync(config);
-            if (_this.enableCache) {
-              _this.prepareCache();
-              _this.cache.config = _this.cache.config;
-              _this.cache.config[src] = content;
-            }
             return callback(null);
           } catch (_error) {
             e = _error;
@@ -334,7 +336,7 @@ URI = function(){
         this.path = file;
       } else {
         this.path = file.path;
-        this.version = file.version || file.hash || null;
+        this.hash = file.hash || null;
       }
       this.scriptPath = url.normalize(this.path);
       this.loadPath = url.resolve(this.context.root, this.path);
@@ -344,14 +346,15 @@ URI = function(){
       var files;
       this.context.prepareCache();
       files = this.context.cache.files || {};
-      return files[this.path];
+      return files[this.loadPath];
     };
 
     Script.prototype._saveScriptContentToCache = function(content) {
       var files;
       this.context.prepareCache();
+      console.debug("save to " + this.loadPath + " with hash " + this.hash + " ??");
       files = this.context.cache.files = this.context.cache.files || {};
-      files[this.path] = {
+      files[this.loadPath] = {
         hash: this.hash,
         content: content
       };
@@ -398,7 +401,10 @@ URI = function(){
       }
       if (this.context && this.context.enableCache) {
         file = this._restoreScriptContentFromCache();
+        console.debug("try restore " + this.loadPath + " from cache", file);
+        console.debug(this.hash, file && file.hash);
         if (file && file.content && !(this.version && this.version !== file.version)) {
+          console.debug("cache found and do the restore");
           console.debug("" + this.loadPath + " from cache");
           setTimeout(((function(_this) {
             return function() {
