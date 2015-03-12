@@ -13,40 +13,40 @@
 
 URI = function(){
     function resolveUri(sUri, sBaseUri) {
-	if (sUri == '' || sUri.charAt(0) == '#') return sUri;
-	var hUri = getUriComponents(sUri);
-	if (hUri.scheme) return sUri;
-	var hBaseUri = getUriComponents(sBaseUri);
-	hUri.scheme = hBaseUri.scheme;
-	if (!hUri.authority) {
-	    hUri.authority = hBaseUri.authority;
-	    if (hUri.path.charAt(0) != '/') {
-		aUriSegments = hUri.path.split('/');
-		aBaseUriSegments = hBaseUri.path.split('/');
-		aBaseUriSegments.pop();
-		var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
-		for (var i in aUriSegments) {
-		    if (aUriSegments[i] == '..')
-			if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
-		    else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
-		    else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);
-		}
-		if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');
-		hUri.path = aBaseUriSegments.join('/');
-	    }
-	}
-	var result = '';
-	if (hUri.scheme   ) result += hUri.scheme + ':';
-	if (hUri.authority) result += '//' + hUri.authority;
-	if (hUri.path     ) result += hUri.path;
-	if (hUri.query    ) result += '?' + hUri.query;
-	if (hUri.fragment ) result += '#' + hUri.fragment;
-	return result;
+    if (sUri == '' || sUri.charAt(0) == '#') return sUri;
+    var hUri = getUriComponents(sUri);
+    if (hUri.scheme) return sUri;
+    var hBaseUri = getUriComponents(sBaseUri);
+    hUri.scheme = hBaseUri.scheme;
+    if (!hUri.authority) {
+        hUri.authority = hBaseUri.authority;
+        if (hUri.path.charAt(0) != '/') {
+        aUriSegments = hUri.path.split('/');
+        aBaseUriSegments = hBaseUri.path.split('/');
+        aBaseUriSegments.pop();
+        var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
+        for (var i in aUriSegments) {
+            if (aUriSegments[i] == '..')
+            if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
+            else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
+            else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);
+        }
+        if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');
+        hUri.path = aBaseUriSegments.join('/');
+        }
+    }
+    var result = '';
+    if (hUri.scheme   ) result += hUri.scheme + ':';
+    if (hUri.authority) result += '//' + hUri.authority;
+    if (hUri.path     ) result += hUri.path;
+    if (hUri.query    ) result += '?' + hUri.query;
+    if (hUri.fragment ) result += '#' + hUri.fragment;
+    return result;
     }
     uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?');
     function getUriComponents(uri) {
-	var c = uri.match(uriregexp);
-	return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };
+    var c = uri.match(uriregexp);
+    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };
     }
     var URI = {}
     URI.resolve = function(base,target){
@@ -57,6 +57,7 @@ URI = function(){
     }
     return {URI:URI}
 }()`
+
 class Context
     @id = 0
     @instances = []
@@ -89,7 +90,7 @@ class Context
     getScript:(path)->
         for script in @scripts
             if script.scriptPath is path
-                return script 
+                return script
         if path.lastIndexOf(".js") isnt path.length - ".js".length
             for script in @scripts
                 if script.scriptPath is path+".js"
@@ -102,9 +103,9 @@ class Context
             try
                 @setConfigSync(config)
                 callback()
-            catch e 
+            catch e
                 callback(e)
-        
+
     setConfigSync:(config)->
         config.js = config.js or {}
         files = config.js.files or []
@@ -128,7 +129,7 @@ class Context
             return
         @setConfigSync @cache.config
         @load callback
-            
+
     setConfigRemote:(src,callback)->
         Context._httpGet src,(err,content)=>
             if err
@@ -138,7 +139,7 @@ class Context
             try
                 config = JSON.parse content
                 @setConfigSync config
-                
+
                 callback null
             catch e
                 callback e
@@ -149,7 +150,7 @@ class Context
     setRequire:(path,module,exports,__require)->
         script = @getScript(path)
         script.setRequire(module,exports,__require)
-    require:(path,fromScript)-> 
+    require:(path,fromScript)->
         url = URI.URI
         if fromScript
             realPath = url.resolve(fromScript.scriptPath,path)
@@ -267,7 +268,7 @@ class Script
                     ),0
                 return
         Context._httpGet @loadPath,(err,content)=>
-            
+
             if err
                 console.error err
                 throw new Error "fail to get #{@loadPath}"
@@ -285,7 +286,7 @@ class Script
     var exports = module.exports
     var global = window;
     var __require = function(){
-    
+
 // #{@scriptPath}
 // BY leaf-require
 #{scriptContent}
@@ -304,7 +305,7 @@ class Script
         script.innerHTML = code
         document.body.appendChild(script)
     createSourceMapUrl:(content)->
-        
+
         offset = 9
         map = {
             "version" : 3,
