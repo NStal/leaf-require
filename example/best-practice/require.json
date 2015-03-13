@@ -1,0 +1,43 @@
+{
+    "name": "leaf-require",
+    "js": {
+        "root": "./js",
+        "files": [
+            {
+                "path": "a.js",
+                "hash": "69b2d5"
+            },
+            {
+                "path": "b.js",
+                "hash": "d3d3cd"
+            },
+            {
+                "path": "c.js",
+                "hash": "c3d567"
+            },
+            {
+                "path": "main.js",
+                "hash": "23d53d"
+            },
+            {
+                "path": "rootA.js",
+                "hash": "8285bf"
+            },
+            {
+                "path": "lib/leaf-require.js",
+                "hash": "70d9cc"
+            },
+            {
+                "path": "sub/subA.js",
+                "hash": "62a110"
+            },
+            {
+                "path": "sub/subB.js",
+                "hash": "4a748f"
+            }
+        ]
+    },
+    "debug": false,
+    "cache": false,
+    "version": "0.0.0.25"
+}

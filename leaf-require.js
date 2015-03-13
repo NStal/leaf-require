@@ -14,40 +14,40 @@
 
 URI = function(){
     function resolveUri(sUri, sBaseUri) {
-	if (sUri == '' || sUri.charAt(0) == '#') return sUri;
-	var hUri = getUriComponents(sUri);
-	if (hUri.scheme) return sUri;
-	var hBaseUri = getUriComponents(sBaseUri);
-	hUri.scheme = hBaseUri.scheme;
-	if (!hUri.authority) {
-	    hUri.authority = hBaseUri.authority;
-	    if (hUri.path.charAt(0) != '/') {
-		aUriSegments = hUri.path.split('/');
-		aBaseUriSegments = hBaseUri.path.split('/');
-		aBaseUriSegments.pop();
-		var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
-		for (var i in aUriSegments) {
-		    if (aUriSegments[i] == '..')
-			if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
-		    else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
-		    else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);
-		}
-		if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');
-		hUri.path = aBaseUriSegments.join('/');
-	    }
-	}
-	var result = '';
-	if (hUri.scheme   ) result += hUri.scheme + ':';
-	if (hUri.authority) result += '//' + hUri.authority;
-	if (hUri.path     ) result += hUri.path;
-	if (hUri.query    ) result += '?' + hUri.query;
-	if (hUri.fragment ) result += '#' + hUri.fragment;
-	return result;
+    if (sUri == '' || sUri.charAt(0) == '#') return sUri;
+    var hUri = getUriComponents(sUri);
+    if (hUri.scheme) return sUri;
+    var hBaseUri = getUriComponents(sBaseUri);
+    hUri.scheme = hBaseUri.scheme;
+    if (!hUri.authority) {
+        hUri.authority = hBaseUri.authority;
+        if (hUri.path.charAt(0) != '/') {
+        aUriSegments = hUri.path.split('/');
+        aBaseUriSegments = hBaseUri.path.split('/');
+        aBaseUriSegments.pop();
+        var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
+        for (var i in aUriSegments) {
+            if (aUriSegments[i] == '..')
+            if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
+            else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
+            else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);
+        }
+        if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');
+        hUri.path = aBaseUriSegments.join('/');
+        }
+    }
+    var result = '';
+    if (hUri.scheme   ) result += hUri.scheme + ':';
+    if (hUri.authority) result += '//' + hUri.authority;
+    if (hUri.path     ) result += hUri.path;
+    if (hUri.query    ) result += '?' + hUri.query;
+    if (hUri.fragment ) result += '#' + hUri.fragment;
+    return result;
     }
     uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?');
     function getUriComponents(uri) {
-	var c = uri.match(uriregexp);
-	return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };
+    var c = uri.match(uriregexp);
+    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };
     }
     var URI = {}
     URI.resolve = function(base,target){
@@ -77,6 +77,10 @@ URI = function(){
       XHR.onreadystatechange = (function(_this) {
         return function(err) {
           if (XHR.readyState === 4) {
+            if (XHR.status !== 200) {
+              callback(new Error("Network Error status code " + XHR.status));
+              return;
+            }
             callback(null, XHR.responseText);
           }
           if (XHR.readyState === 0) {
@@ -91,16 +95,34 @@ URI = function(){
       if (option == null) {
         option = {};
       }
-      this.scripts = [];
-      this.root = option.root || "./";
-      this.ready = false;
       this.id = Context.id++;
-      this.globalName = "LeafRequire";
-      this.useObjectUrl = false;
-      this.version = "0.0.0";
       Context.instances[this.id] = this;
-      this.localStoragePrefix = "leaf-require";
+      this.globalName = "LeafRequire";
+      this.localStoragePrefix = option.localStoragePrefix || this.globalName;
+      this.dry = option.dry || false;
+      this.ready = false;
+      this.scripts = [];
+      this.store = {
+        files: {}
+      };
+      this.init({
+        root: option.root,
+        version: option.version,
+        name: option.name,
+        debug: option.debug
+      });
     }
+
+    Context.prototype.init = function(option) {
+      this.root = option.root || this.root || "./";
+      if (this.root[this.root.length - 1] !== "/") {
+        this.root += "/";
+      }
+      this.version = option.version || this.version || "0.0.0";
+      this.name = option.name || this.name || "leaf-require";
+      this.debug = option.debug || this.name || false;
+      return this.enableSourceMap = option.enableSourceMap || this.debug || false;
+    };
 
     Context.prototype.use = function() {
       var file, files, _i, _len, _results;
@@ -108,10 +130,17 @@ URI = function(){
       _results = [];
       for (_i = 0, _len = files.length; _i < _len; _i++) {
         file = files[_i];
-        console.log("use", file.path || file);
         _results.push(this.scripts.push(new Script(this, file)));
       }
       return _results;
+    };
+
+    Context.prototype._debug = function() {
+      var args;
+      args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+      if (this.debug) {
+        return console.debug.apply(console, args);
+      }
     };
 
     Context.prototype.getScript = function(path) {
@@ -135,8 +164,25 @@ URI = function(){
       return null;
     };
 
-    Context.prototype.setConfig = function(config, callback) {
+    Context.prototype.getRequire = function(path) {
+      var script;
+      script = this.getScript(path);
+      return function(_path) {
+        return script.require(_path);
+      };
+    };
+
+    Context.prototype.setRequire = function(path, module, exports, __require) {
+      var script;
+      script = this.getScript(path);
+      return script.setRequire(module, exports, __require);
+    };
+
+    Context.prototype.loadConfig = function(config, callback) {
       var e;
+      if (callback == null) {
+        callback = function() {};
+      }
       if (typeof config === "string") {
         return this.setConfigRemote(config, callback);
       } else {
@@ -150,36 +196,21 @@ URI = function(){
       }
     };
 
-    Context.prototype.setConfigSync = function(config) {
-      var file, files, _i, _len;
-      config.js = config.js || {};
-      files = config.js.files || [];
-      this.root = config.js.root || this.root;
-      for (_i = 0, _len = files.length; _i < _len; _i++) {
-        file = files[_i];
-        this.use(file);
-      }
-      this.name = config.name;
-      this.localStoragePrefix = this.name;
-      this.mainModule = config.js.main || null;
-      this.debug = config.debug || this.debug;
-      this.enableCache = config.cache || this.enableCache || !this.debug || false;
-      this.version = config.version || this.version || "0.0.0";
-      if (this.enableCache) {
-        this.prepareCache();
-        this.cache.config = config;
-        return this.saveCache();
-      }
-    };
-
-    Context.prototype.loadWithConfigFromCache = function(callback) {
-      this.prepareCache();
-      if (!this.cache.config) {
-        callback(new Error("no config cache available"));
-        return;
-      }
-      this.setConfigSync(this.cache.config);
-      return this.load(callback);
+    Context.prototype.toConfig = function() {
+      return {
+        name: this.name,
+        version: this.version,
+        debug: this.debug,
+        js: {
+          root: this.root,
+          files: this.scripts.map(function(script) {
+            return {
+              hash: script.hash,
+              path: script.path
+            };
+          })
+        }
+      };
     };
 
     Context.prototype.setConfigRemote = function(src, callback) {
@@ -203,18 +234,22 @@ URI = function(){
       })(this));
     };
 
-    Context.prototype.getRequire = function(path) {
-      var script;
-      script = this.getScript(path);
-      return function(_path) {
-        return script.require(_path);
-      };
-    };
-
-    Context.prototype.setRequire = function(path, module, exports, __require) {
-      var script;
-      script = this.getScript(path);
-      return script.setRequire(module, exports, __require);
+    Context.prototype.setConfigSync = function(config) {
+      var file, files, js, _i, _len;
+      this.hasConfiged = true;
+      js = config.js || {};
+      files = js.files || [];
+      this.init({
+        name: config.name,
+        root: js.root,
+        version: config.version,
+        debug: config.debug
+      });
+      for (_i = 0, _len = files.length; _i < _len; _i++) {
+        file = files[_i];
+        this.use(file);
+      }
+      return this.store.config = config;
     };
 
     Context.prototype.require = function(path, fromScript) {
@@ -235,24 +270,103 @@ URI = function(){
       return script.beRequired();
     };
 
-    Context.prototype.load = function(callback) {
+    Context.prototype.restoreCache = function() {
+      var e, _base;
+      try {
+        this.store = JSON.parse(window.localStorage.getItem("" + this.localStoragePrefix + "/cache") || "{}");
+      } catch (_error) {
+        e = _error;
+        this.store = {};
+      }
+      if (this.store.config) {
+        this.loadConfig(this.store.config);
+      }
+      if ((_base = this.store).files == null) {
+        _base.files = {};
+      }
+    };
+
+    Context.prototype.isCacheAtomic = function() {
+      var files, script, _i, _len, _ref;
+      if (!this.store) {
+        return false;
+      }
+      files = this.store.files || {};
+      _ref = this.scripts;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        script = _ref[_i];
+        if (script.hash && script.loadPath && files[script.loadPath] && files[script.loadPath].hash === script.hash) {
+          continue;
+        } else {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    Context.prototype.clearCache = function(version) {
+      return window.localStorage.removeItem("" + this.localStoragePrefix + "/cache");
+    };
+
+    Context.prototype.compactCache = function(option) {
+      var script, _i, _j, _len, _len1, _ref, _ref1;
+      if (option == null) {
+        option = {};
+      }
+      if (this.isCacheAtomic()) {
+        return false;
+      }
+      if (!this.isReady) {
+        return false;
+      }
+      if (this.hasConfiged || option.exportConfig) {
+        this.store.config = this.toConfig();
+      }
+      this.store.files = {};
+      _ref = this.scripts;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        script = _ref[_i];
+        if (!script.scriptContent) {
+          return false;
+        }
+      }
+      _ref1 = this.script;
+      for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+        script = _ref1[_j];
+        script._saveScriptContentToStore(script.scriptContent);
+      }
+      return true;
+    };
+
+    Context.prototype.load = function(option, callback) {
+      var loadFailure;
+      if (option == null) {
+        option = {};
+      }
+      if (typeof option === "function") {
+        callback = option;
+      }
+      loadFailure = false;
       return this.scripts.forEach((function(_this) {
         return function(script) {
           return script.load(function(err) {
             var allReady;
+            if (loadFailure) {
+              return;
+            }
             if (err) {
-              throw new Error("fail to load script " + script.loadPath);
+              loadFailure = true;
+              callback(new Error("fail to load script " + script.loadPath));
+              return;
             }
             allReady = _this.scripts.every(function(item) {
-              if (!item.isReady) {
+              if (!item.isReady && !(item.dryReady && _this.dry)) {
                 return false;
               }
               return true;
             });
             if (allReady) {
-              if (_this.mainModule) {
-                _this.require(_this.mainModule);
-              }
+              _this.isReady = true;
               return callback();
             }
           });
@@ -260,56 +374,17 @@ URI = function(){
       })(this));
     };
 
-    Context.prototype.clearCache = function(version) {
-      var index, key, keys, _i, _len, _results;
-      if (!window.localStorage) {
-        return;
+    Context.prototype.saveCache = function(option) {
+      var store;
+      if (option == null) {
+        option = {};
       }
-      keys = (function() {
-        var _i, _ref, _results;
-        _results = [];
-        for (index = _i = 0, _ref = window.localStorage.length; 0 <= _ref ? _i < _ref : _i > _ref; index = 0 <= _ref ? ++_i : --_i) {
-          _results.push(window.localStorage.key(index));
-        }
-        return _results;
-      })();
-      _results = [];
-      for (_i = 0, _len = keys.length; _i < _len; _i++) {
-        key = keys[_i];
-        if (key.indexOf(this.localStoragePrefix) === 0) {
-          _results.push(window.localStorage.removeItem(key));
-        } else {
-          _results.push(void 0);
-        }
+      store = this.store || {};
+      if (this.hasConfiged || option.exportConfig) {
+        store.config = this.toConfig();
       }
-      return _results;
-    };
-
-    Context.prototype.prepareCache = function() {
-      var cache, e;
-      if (!window.localStorage) {
-        this.cache = {};
-        return;
-      }
-      if (this.cache) {
-        return;
-      }
-      cache = window.localStorage.getItem("" + this.localStoragePrefix + "/cache") || "{}";
-      try {
-        this.cache = JSON.parse(cache);
-      } catch (_error) {
-        e = _error;
-        this.cache = {};
-      }
-    };
-
-    Context.prototype.saveCache = function() {
-      var cache;
-      if (!window.localStorage) {
-        return;
-      }
-      cache = this.cache || {};
-      return window.localStorage.setItem("" + this.localStoragePrefix + "/cache", JSON.stringify(cache));
+      console.log("save cache", store);
+      return window.localStorage.setItem("" + this.localStoragePrefix + "/cache", JSON.stringify(store || {}));
     };
 
     Context.prototype.saveCacheDelay = function() {
@@ -321,6 +396,16 @@ URI = function(){
           return _this.saveCache();
         };
       })(this)), 0);
+    };
+
+    Context.prototype.clone = function(option) {
+      var c;
+      c = new Context(option);
+      c.loadConfig(this.toConfig());
+      c.scripts = this.scripts.map(function(script) {
+        return script.clone(c);
+      });
+      return c;
     };
 
     return Context;
@@ -339,26 +424,38 @@ URI = function(){
         this.hash = file.hash || null;
       }
       this.scriptPath = url.normalize(this.path);
-      this.loadPath = url.resolve(this.context.root, this.path);
+      this.loadPath = url.resolve(this.context.root, file.loadPath || this.path);
+      this._debug = this.context._debug.bind(this);
     }
 
-    Script.prototype._restoreScriptContentFromCache = function() {
-      var files;
-      this.context.prepareCache();
-      files = this.context.cache.files || {};
-      return files[this.loadPath];
+    Script.prototype.clone = function(context) {
+      var prop, s, _i, _len, _ref;
+      s = new Script(context, {
+        path: this.path,
+        hash: this.hash,
+        loadPath: this.loadPath
+      });
+      _ref = ["isReady", "_module", "_exports", "_require", "_isRequiring", "exports", "scriptContent"];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        prop = _ref[_i];
+        s[prop] = this[prop];
+      }
+      return s;
     };
 
-    Script.prototype._saveScriptContentToCache = function(content) {
-      var files;
-      this.context.prepareCache();
-      console.debug("save to " + this.loadPath + " with hash " + this.hash + " ??");
-      files = this.context.cache.files = this.context.cache.files || {};
-      files[this.loadPath] = {
+    Script.prototype._restoreScriptContentFromStore = function() {
+      if (this.context.store && this.context.store.files) {
+        return this.context.store.files[this.loadPath];
+      }
+      return null;
+    };
+
+    Script.prototype._saveScriptContentToStore = function(content) {
+      this._debug("save to " + this.loadPath + " with hash " + this.hash + " ??");
+      return this.context.store.files[this.loadPath] = {
         hash: this.hash,
         content: content
       };
-      return this.context.saveCacheDelay();
     };
 
     Script.prototype.require = function(path) {
@@ -399,27 +496,27 @@ URI = function(){
         callback();
         return;
       }
-      if (this.context && this.context.enableCache) {
-        file = this._restoreScriptContentFromCache();
-        console.debug("try restore " + this.loadPath + " from cache", file);
-        console.debug(this.hash, file && file.hash);
-        if (file && file.content && !(this.version && this.version !== file.version)) {
-          console.debug("cache found and do the restore");
-          console.debug("" + this.loadPath + " from cache");
-          setTimeout(((function(_this) {
-            return function() {
-              return _this.parse(file.content);
-            };
-          })(this)), 0);
-          return;
-        }
+      file = this._restoreScriptContentFromStore();
+      this._debug("try restore " + this.loadPath + " from cache", file);
+      this._debug(this.hash, file && file.hash);
+      if (file && file.content && !(this.version && this.version !== file.version)) {
+        console.debug("return from", this.context.name, this.loadPath);
+        this._debug("cache found and do the restore");
+        this._debug("" + this.loadPath + " from cache");
+        setTimeout(((function(_this) {
+          return function() {
+            return _this.parse(file.content);
+          };
+        })(this)), 0);
+        return;
       }
       return Context._httpGet(this.loadPath, (function(_this) {
         return function(err, content) {
           if (err) {
-            console.error(err);
-            throw new Error("fail to get " + _this.loadPath);
+            callback(new Error("fail to get " + _this.loadPath));
+            return;
           }
+          _this.scriptContent = content;
           return _this.parse(content);
         };
       })(this));
@@ -430,12 +527,15 @@ URI = function(){
       if (this.script) {
         null;
       }
-      if (this.context.enableCache) {
-        this._saveScriptContentToCache(scriptContent);
+      this._saveScriptContentToStore(scriptContent);
+      if (this.context.dry && this._loadCallback) {
+        this.dryReady = true;
+        this._loadCallback();
+        return;
       }
       script = document.createElement("script");
-      code = "(function(){\n    var require = " + this.context.globalName + ".getContext(" + this.context.id + ").getRequire('" + this.scriptPath + "')\n    var module = {exports:{}};\n    var exports = module.exports\n    var global = window;\n    var __require = function(){\n    \n// " + this.scriptPath + "\n// BY leaf-require\n" + scriptContent + "\n\n}\n" + this.context.globalName + ".getContext(" + this.context.id + ").setRequire('" + this.scriptPath + "',module,exports,__require)\n\n})()";
-      if (this.context.debug) {
+      code = "(function(){\n    var require = " + this.context.globalName + ".getContext(" + this.context.id + ").getRequire('" + this.scriptPath + "')\n    var module = {exports:{}};\n    var exports = module.exports\n    var global = window;\n    var __require = function(){\n\n// " + this.scriptPath + "\n// BY leaf-require\n" + scriptContent + "\n\n}\n" + this.context.globalName + ".getContext(" + this.context.id + ").setRequire('" + this.scriptPath + "',module,exports,__require)\n\n})()";
+      if (this.context.debug || this.context.enableSourceMap) {
         mapDataUrl = this.createSourceMapUrl(scriptContent);
         code += "//# sourceMappingURL=" + mapDataUrl;
       }
@@ -477,6 +577,167 @@ URI = function(){
     };
 
     return Script;
+
+  })();
+
+  Context.BestPractice = (function() {
+    function BestPractice(option) {
+      this.config = option.config || "./require.json";
+      this.localStoragePrefix = option.localStoragePrefix;
+      this.errorHint = option.errorHint || this.errorHint;
+      this.updateConfirm = option.updateConfirm || this.updateConfirm;
+      this.debug = option.debug || false;
+      this.showDebugInfo = option.showDebugInfo || option.debug || false;
+      this.enableSourceMap = option.enableSourceMap || false;
+      this.entry = option.entry || "main";
+    }
+
+    BestPractice.prototype._debug = function() {
+      var args;
+      args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+      if (this.debug || this.showDebugInfo) {
+        if (console.debug == null) {
+          console.debug = console.log.bind(console);
+        }
+        return console.debug.apply(console, args);
+      }
+    };
+
+    BestPractice.prototype.run = function() {
+      this.context = new LeafRequire({
+        localStoragePrefix: this.localStoragePrefix,
+        enableSourceMap: this.enableSourceMap
+      });
+      if (this.debug) {
+        this.context.loadConfig(this.config, (function(_this) {
+          return function() {
+            return _this.context.load(function() {
+              return _this.context.require(_this.entry);
+            });
+          };
+        })(this));
+        return;
+      }
+      this.context.restoreCache();
+      if (this.context.hasConfiged) {
+        if (this.context.isCacheAtomic()) {
+          this._debug("may use cache completely");
+        }
+        return this.context.load((function(_this) {
+          return function(err) {
+            _this._debug("has config");
+            if (err) {
+              _this.errorHint();
+              return;
+            }
+            _this.context.require(_this.entry);
+            _this.checkVerionUpdate();
+          };
+        })(this));
+      } else {
+        return this.context.loadConfig(this.config, (function(_this) {
+          return function(err) {
+            if (err) {
+              _this.errorHint();
+              return;
+            }
+            return _this.context.load(function(err) {
+              if (err) {
+                _this.errorHint();
+                return;
+              }
+              _this.context.saveCache();
+              return _this.context.require(_this.entry);
+            });
+          };
+        })(this));
+      }
+    };
+
+    BestPractice.prototype.errorHint = function() {
+      return alert("Fail to load application, please reload the webpage. If not work, please contact admin.");
+    };
+
+    BestPractice.prototype.updateConfirm = function(callback) {
+      var message;
+      message = "detect a new version of the app, should we reload";
+      return callback(confirm(message));
+    };
+
+    BestPractice.prototype.semanticCompare = function(a, b) {
+      var as, bs, index, va, vb, _i, _len;
+      if (a == null) {
+        a = "";
+      }
+      if (b == null) {
+        b = "";
+      }
+      as = a.split(".");
+      bs = b.split(".");
+      while (as.length > bs.length) {
+        bs.push("0");
+      }
+      while (bs.length > as.length) {
+        as.push("0");
+      }
+      as = as.map(function(item) {
+        return Number(item) || 0;
+      });
+      bs = bs.map(function(item) {
+        return Number(item) || 0;
+      });
+      for (index = _i = 0, _len = as.length; _i < _len; index = ++_i) {
+        va = as[index];
+        vb = bs[index];
+        if (va > vb) {
+          return 1;
+        } else if (va < vb) {
+          return -1;
+        }
+      }
+      return 0;
+    };
+
+    BestPractice.prototype.checkVerionUpdate = function() {
+      var checker;
+      checker = new Context({
+        localStoragePrefix: "SybilLeafRequire",
+        dry: true
+      });
+      this._debug("check config");
+      return checker.loadConfig(this.config, (function(_this) {
+        return function(err) {
+          if (err) {
+            console.error(err, "fail to do load config");
+            return;
+          }
+          checker.name = "checker";
+          _this._debug("check config loaded");
+          if ((_this.semanticCompare(checker.version, _this.context.version)) > 0) {
+            _this._debug(_this.context.version, "<", checker.version);
+            _this._debug("check config detect updates, load it");
+            return checker.load(function(err) {
+              if (err) {
+                console.error(err, "fail to load updates");
+                return;
+              }
+              _this._debug("updates load complete");
+              checker.compactCache();
+              checker.saveCache();
+              return _this.updateConfirm(function(result) {
+                if (result) {
+                  return window.location = window.location.toString();
+                }
+              });
+            });
+          } else {
+            return _this._debug("check config complete, no updates: version " + checker.version);
+          }
+        };
+      })(this));
+    };
+
+    return BestPractice;
 
   })();
 

@@ -58,9 +58,11 @@ URI = function(){
     return {URI:URI}
 }()`
 
+
 class Context
     @id = 0
     @instances = []
+    # for inserted script to make reference to the context
     @getContext = (id)->
         return @instances[id]
     @_httpGet = (url,callback)->
@@ -68,25 +70,47 @@ class Context
         XHR.open("GET",url,true)
         XHR.onreadystatechange = (err)=>
             if XHR.readyState is 4
+                if XHR.status isnt 200
+                    callback new Error "Network Error status code #{XHR.status}"
+                    return
                 callback null,XHR.responseText
             if XHR.readyState is 0
                 callback new Error "Network Error"
         XHR.send()
-
     constructor:(option = {})->
-        @scripts = []
-        @root = option.root or "./"
-        @ready = false
         @id = Context.id++
-        @globalName = "LeafRequire"
-        @useObjectUrl = false
-        @version = "0.0.0"
         Context.instances[@id] = this
-        @localStoragePrefix = "leaf-require"
+
+        @globalName = "LeafRequire"
+        # one may overwrite localStoragePrefix to
+        # avoid conflict of multiple use of leaf-require
+        # on the same domain.
+        @localStoragePrefix = option.localStoragePrefix or @globalName
+        @dry = option.dry or false
+        @ready = false
+        @scripts = []
+        @store = {files:{}}
+        @init
+            root:option.root
+            version:option.version
+            # you may use different project name to avoid conflict
+            name:option.name
+            debug:option.debug
+    init:(option)->
+        @root = option.root or @root or "./"
+        if @root[@root.length - 1] isnt "/"
+            @root += "/"
+        @version = option.version or @version or "0.0.0"
+        @name = option.name or @name or "leaf-require"
+        @debug = option.debug or @name or false
+        @enableSourceMap = option.enableSourceMap or @debug or false
     use:(files...)->
         for file in files
-            console.log "use",file.path or file
             @scripts.push new Script this,file
+
+    _debug:(args...)->
+        if @debug
+            console.debug args...
     getScript:(path)->
         for script in @scripts
             if script.scriptPath is path
@@ -96,7 +120,20 @@ class Context
                 if script.scriptPath is path+".js"
                     return script
         return null
-    setConfig:(config,callback)->
+    # The require related method, may be invoked by compiled script
+    getRequire:(path)->
+        script = @getScript(path)
+        return (_path)->
+            return script.require(_path)
+    setRequire:(path,module,exports,__require)->
+        script = @getScript(path)
+        script.setRequire(module,exports,__require)
+    # END
+
+    loadConfig:(config,callback = ()->)->
+
+        # If config is a string, treat it as a config url.
+        # unless treat it as a config json object
         if typeof config is "string"
             @setConfigRemote config,callback
         else
@@ -105,31 +142,18 @@ class Context
                 callback()
             catch e
                 callback(e)
-
-    setConfigSync:(config)->
-        config.js = config.js or {}
-        files = config.js.files or []
-        @root = config.js.root or @root
-        for file in files
-            @use file
-        @name = config.name
-        @localStoragePrefix = @name
-        @mainModule = config.js.main or null
-        @debug = config.debug or @debug
-        @enableCache = config.cache or @enableCache or not @debug or false
-        @version = config.version or @version or "0.0.0"
-        if @enableCache
-            @prepareCache()
-            @cache.config = config
-            @saveCache()
-    loadWithConfigFromCache:(callback)->
-        @prepareCache()
-        if not @cache.config
-            callback new Error "no config cache available"
-            return
-        @setConfigSync @cache.config
-        @load callback
-
+    # config is a file to restore context info
+    # thus a context can be turn into a config file
+    toConfig:()->
+        return {
+            name:@name
+            version:@version
+            debug:@debug
+            js:{
+                root:@root
+                files:@scripts.map((script)->{hash:script.hash,path:script.path})
+            }
+        }
     setConfigRemote:(src,callback)->
         Context._httpGet src,(err,content)=>
             if err
@@ -143,13 +167,19 @@ class Context
                 callback null
             catch e
                 callback e
-    getRequire:(path)->
-        script = @getScript(path)
-        return (_path)->
-            return script.require(_path)
-    setRequire:(path,module,exports,__require)->
-        script = @getScript(path)
-        script.setRequire(module,exports,__require)
+    setConfigSync:(config)->
+        @hasConfiged = true
+        js = config.js or {}
+        files = js.files or []
+#        console.debug "CONFIG",config
+        @init
+            name:config.name
+            root:js.root
+            version:config.version
+            debug:config.debug
+        for file in files
+            @use file
+        @store.config = config
     require:(path,fromScript)->
         url = URI.URI
         if fromScript
@@ -162,49 +192,78 @@ class Context
         if not script
             throw new Error "module #{realPath} not found"
         return script.beRequired()
-    load:(callback)->
+    restoreCache:()->
+        try
+            @store = JSON.parse window.localStorage.getItem("#{@localStoragePrefix}/cache") or "{}"
+        catch e
+            @store = {}
+        if @store.config
+            @loadConfig @store.config
+        @store.files ?= {}
+        return
+    isCacheAtomic:()->
+        if not @store
+            return false
+        files = @store.files or {}
+        for script in @scripts
+            if script.hash and script.loadPath and files[script.loadPath] and files[script.loadPath].hash is script.hash
+                continue
+            else
+                return false
+        return true
+    clearCache:(version)->
+        window.localStorage.removeItem("#{@localStoragePrefix}/cache")
+    compactCache:(option = {})->
+        if @isCacheAtomic()
+            return false
+        if not @isReady
+            return false
+        if @hasConfiged or option.exportConfig
+            @store.config = @toConfig()
+        @store.files = {}
+        for script in @scripts
+            if not script.scriptContent
+                return false
+        for script in @script
+            script._saveScriptContentToStore(script.scriptContent)
+        return true
+
+    load:(option = {},callback)->
+        if typeof option is "function"
+            callback = option
+        loadFailure = false
         @scripts.forEach (script)=>
             script.load (err)=>
+                if loadFailure
+                    return
                 if err
-                    throw new Error "fail to load script #{script.loadPath}"
+                    loadFailure = true
+                    callback new Error "fail to load script #{script.loadPath}"
+                    return
                 allReady = @scripts.every (item)=>
-                    if not item.isReady
+                    if not item.isReady and not (item.dryReady and @dry)
                         return false
                     return true
                 if allReady
-                    if @mainModule
-                        @require @mainModule
+                    @isReady = true
                     callback()
-    clearCache:(version)->
-        if not window.localStorage
-            return
-        keys = (window.localStorage.key(index) for index in [0...window.localStorage.length])
-        for key in keys
-            if key.indexOf(@localStoragePrefix) is 0
-                window.localStorage.removeItem key
-    prepareCache:()->
-        if not window.localStorage
-            @cache = {}
-            return
-        if @cache
-            return
-        cache = window.localStorage.getItem("#{@localStoragePrefix}/cache") or "{}"
-        try
-            @cache = JSON.parse cache
-        catch e
-            @cache = {}
-        return
-    saveCache:()->
-        if not window.localStorage
-            return
-        cache = @cache or {}
-        window.localStorage.setItem "#{@localStoragePrefix}/cache",JSON.stringify cache
+    saveCache:(option = {})->
+        store = @store or {}
+        if @hasConfiged or option.exportConfig
+            store.config = @toConfig()
+        console.log "save cache",store
+        window.localStorage.setItem "#{@localStoragePrefix}/cache",JSON.stringify store or {}
     saveCacheDelay:()->
         if @_saveCacheDelayTimer
             clearTimeout @_saveCacheDelayTimer
         @_saveCacheDelayTimer = setTimeout (()=>
             @saveCache()
             ),0
+    clone:(option)->
+        c = new Context(option)
+        c.loadConfig @toConfig()
+        c.scripts = @scripts.map (script)->script.clone(c)
+        return c
 class Script
     constructor:(@context,file)->
         url = URI.URI
@@ -214,20 +273,25 @@ class Script
             @path = file.path
             @hash = file.hash or null
         @scriptPath = url.normalize(@path)
-        @loadPath = url.resolve(@context.root,@path)
-    _restoreScriptContentFromCache:()->
-        @context.prepareCache()
-        files = @context.cache.files or {}
-        return files[@loadPath]
-    _saveScriptContentToCache:(content)->
-        @context.prepareCache()
-        console.debug "save to #{@loadPath} with hash #{@hash} ??"
-        files = @context.cache.files = @context.cache.files or {}
-        files[@loadPath] = {
+        @loadPath = url.resolve(@context.root,file.loadPath or @path)
+        @_debug = @context._debug.bind(this)
+    clone:(context)->
+        s = new Script(context,{
+            @path,@hash,@loadPath
+        })
+        for prop in ["isReady","_module","_exports","_require","_isRequiring","exports","scriptContent"]
+            s[prop] = @[prop]
+        return s
+    _restoreScriptContentFromStore:()->
+        if @context.store and @context.store.files
+            return @context.store.files[@loadPath]
+        return null
+    _saveScriptContentToStore:(content)->
+        @_debug "save to #{@loadPath} with hash #{@hash} ??"
+        @context.store.files[@loadPath] = {
             hash:@hash
             content:content
         }
-        @context.saveCacheDelay()
     require:(path)->
         return @context.require path,this
     setRequire:(module,exports,__require)->
@@ -255,29 +319,32 @@ class Script
         if @isReady
             callback()
             return
-        if @context and @context.enableCache
-            file = @_restoreScriptContentFromCache()
-            console.debug "try restore #{@loadPath} from cache",file
-            console.debug @hash,file and file.hash
-            # has file, has content and
-            if file and file.content and not (@version and @version isnt file.version)
-                console.debug "cache found and do the restore"
-                console.debug "#{@loadPath} from cache"
-                setTimeout (()=>
-                    @parse file.content
-                    ),0
-                return
+        file = @_restoreScriptContentFromStore()
+        @_debug "try restore #{@loadPath} from cache",file
+        @_debug @hash,file and file.hash
+        # has file, has content and
+        if file and file.content and not (@version and @version isnt file.version)
+            console.debug "return from",@context.name,@loadPath
+            @_debug "cache found and do the restore"
+            @_debug "#{@loadPath} from cache"
+            setTimeout (()=>
+                @parse file.content
+                ),0
+            return
         Context._httpGet @loadPath,(err,content)=>
-
             if err
-                console.error err
-                throw new Error "fail to get #{@loadPath}"
+                callback new Error "fail to get #{@loadPath}"
+                return
+            @scriptContent = content
             @parse content
     parse:(scriptContent)->
         if @script
             null
-        if @context.enableCache
-            @_saveScriptContentToCache(scriptContent)
+        @_saveScriptContentToStore(scriptContent)
+        if @context.dry and @_loadCallback
+            @dryReady = true
+            @_loadCallback()
+            return
         script = document.createElement("script")
         code = """
 (function(){
@@ -296,7 +363,7 @@ class Script
 
 })()
         """
-        if @context.debug
+        if @context.debug or @context.enableSourceMap
             mapDataUrl = @createSourceMapUrl(scriptContent)
             code += """
     //# sourceMappingURL=#{mapDataUrl}
@@ -327,6 +394,100 @@ class Script
         map.mappings = result.join("")
         url = URL.createObjectURL new Blob([JSON.stringify(map)],{type:"text/json"})
         return url
+class Context.BestPractice
+    constructor:(option)->
+        @config = option.config or "./require.json"
+        @localStoragePrefix = option.localStoragePrefix
+        @errorHint = option.errorHint or @errorHint
+        @updateConfirm = option.updateConfirm or @updateConfirm
+        @debug = option.debug or false
+        @showDebugInfo = option.showDebugInfo or option.debug or false
+        @enableSourceMap = option.enableSourceMap or false
+        @entry = option.entry or "main"
+    _debug:(args...)->
+        if @debug or @showDebugInfo
+            console.debug ?= console.log.bind(console)
+            console.debug args...
+    run:()->
+        @context = new LeafRequire({@localStoragePrefix,@enableSourceMap})
+        if @debug
+            @context.loadConfig @config,()=>
+                @context.load ()=>
+                    @context.require @entry
+            return
+        @context.restoreCache()
+        if @context.hasConfiged
+            if @context.isCacheAtomic()
+                @_debug "may use cache completely"
+            @context.load (err)=>
+                @_debug "has config"
+                if err
+                    @errorHint()
+                    return
+                @context.require @entry
+                @checkVerionUpdate()
+                return
+        else
+            @context.loadConfig @config,(err)=>
+                if err
+                    @errorHint()
+                    return
+                @context.load (err)=>
+                    if err
+                        @errorHint()
+                        return
+                    @context.saveCache()
+                    @context.require @entry
+
+    errorHint:()->
+        alert "Fail to load application, please reload the webpage. If not work, please contact admin."
+    updateConfirm:(callback)->
+        message = "detect a new version of the app, should we reload"
+        callback confirm(message)
+    semanticCompare:(a = "",b = "")->
+            as = a.split(".")
+            bs = b.split(".")
+            while as.length > bs.length
+                bs.push "0"
+            while bs.length > as.length
+                as.push "0"
+            as = as.map (item)->Number(item) or 0
+            bs = bs.map (item)->Number(item) or 0
+            for va,index in as
+                vb = bs[index]
+                if va > vb
+                    return 1
+                else if va < vb
+                    return -1
+            return 0
+    checkVerionUpdate:()->
+        checker = new Context({localStoragePrefix:"SybilLeafRequire",dry:true})
+        @_debug "check config"
+        checker.loadConfig @config,(err)=>
+            if err
+                # fail silently to user
+                console.error err,"fail to do load config"
+                return
+            checker.name = "checker"
+            @_debug "check config loaded"
+            # we use semantic version like 1.2.3.abc
+            if (@semanticCompare checker.version,@context.version) > 0
+                @_debug @context.version,"<",checker.version
+                @_debug "check config detect updates, load it"
+                checker.load (err)=>
+                    # fail silently
+                    if err
+                        console.error err,"fail to load updates"
+                        return
+                    @_debug "updates load complete"
+                    checker.compactCache()
+                    checker.saveCache()
+                    @updateConfirm (result)->
+                        if result
+                            window.location = window.location.toString()
+            else
+                @_debug "check config complete, no updates: version #{checker.version}"
+
 if not exports
     exports = window
 exports.LeafRequire = Context

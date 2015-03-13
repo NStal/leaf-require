@@ -5,7 +5,7 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 ## Feature
 * do what common module do.
 * localStorage cache support
-* version support
+* flexible version support
 * source map support, you will not notice any difference of your code when debug, just like directly include them in the html.
 * friendly with manifest.
 
@@ -13,7 +13,25 @@ A experiment lib allow you use nodejs style sync require in browser without prec
 
 All the example script can be found at /example.
 
-### Basic usage
+### Best practice
+
+here introduce the best practice of `leaf-require`.
+
+first create a config file using leafjs-require from npm.
+```bash
+npm install -g leafjs-util
+# print help for leafjs-require
+leafjs-require -h
+# see the script below at ./example/best-practice/createRequire.sh
+# create the config file
+read version < ./version
+ [ -z "$version" ] && version=0
+# everytime after creating require.json, version bumps.
+version=$((version + 1))
+echo $version > ./version
+leafjs-require ./js -r "./js" --set-version "0.0.0."$version -o ./require.json --excludes ./js/init.js,./js/lib/leaf-require.js
+```
+
 ```html
 <!doctype html>
 <html>
@@ -27,60 +45,17 @@ All the example script can be found at /example.
 </html>
 ```
 
-Then we write a init.js to setup the requirements.
+Then we write a init.coffee to setup .
 
-```javascript
-  //init.js
-  var context;
-
-  context = new LeafRequire({
-    root: "./test/"
-  });
-  context.debug = true; // open source map
-  context.use("a.js"
-        , "b.js"
-        , "c.js"
-        , "main.js"
-        , "sub/subA.js"
-        , "sub/subB.js"
-        , "rootA.js");
-
-  context.load(function() {
-    console.log("inited");
-    context.require("main");
-    // main will require a.js 
-    // a.js will require b.js and c.js
-    // b.js will require a.js (recursive require behaves just like nodejs)
-    
-    context.require("sub/subA");
-    // sub/subA.js will require rootA.js
-    // rootA.js will require sub/subB.js
-  });
-```
-
-a.js may looks like below.
-
-```javascript
-b = require("b")
-c = require("c")
-console.log("I'm module a!");
-```
-
-### manage requirements with a config
-```javascript
-var context = new LeafRequire({
-  root: "./test/"
-});
-// config can be a url to the config file
-var config = "asset/require.json"
-context.setConfig(config,function(err){
-  console.assert(!err);
-  context.load(function(err){
-    console.assert(!err);
-    context.require("main");
-  })
+```coffee-script
+loader = new LeafRequire.BestPractice({
+    localStoragePrefix:"SybilLeafRequire"
+    ,config:"./require.json"
+    ,showDebugInfo:true
+    # the first module to run after load
+    ,entry:"main"
 })
-
+loader.run()
 ```
 
 require.json may looks like below, // is invalid for json, so don't add them to your json file
@@ -88,6 +63,7 @@ require.json may looks like below, // is invalid for json, so don't add them to 
 ```javascript
 {
     "name": "leaf-require",
+    "version": "0.0.1",
     "js": {
         "root": "./test/",  // request root, togather with the file path we generate the request url
         "files": [
@@ -124,12 +100,6 @@ require.json may looks like below, // is invalid for json, so don't add them to 
 
         ]
     },
-    // enable debug mode, currently just for source map
-    "debug": true,
-    // enable cache so the script will be stored to localStorage
-    // and next time, they will be likely stored from localStorage
-    // if hash matches.
-    "cache": false
 }
 ```
 
@@ -138,7 +108,6 @@ You can easily generate this config by using leafjs-util. You can generate the a
 sudo npm install -g leafjs-util
 
 leafjs-require -h   # print the help message
-leafjs-require ./test/ --enable-debug -r "./test/"
 # The config will be print to stdout.
 # You can also use -o option to specify a file to store it.
 # Note, if -o with an exists file, leafjs-require 
@@ -153,14 +122,23 @@ leafjs-require ./test/ --enable-debug -r "./test/"
 
 ```require("/a")``` will be /{root}/a or then /{root}/a.js
 
-### useful features
-
-```javascript
-
-context.enableCache = true  // try load script from local storage first
-context.clearCache()        // clear cache so force an reload
-context.debug = true        // enable source map feature for easier debug
+### useful features in BestPractice
+```coffee-script
+new BestPractive {
+    errorHint:()->
+        console.error "give user some feedback to let them try again later"
+    updateConfirm:(callback)->
+        console.log ask user to refresh the page"
+        callback confirm "update detected, shall we reload now?"
+    # ignore cache completely and compile source map.
+    debug:true
+    # you can also only enable source map
+    enableSourceMap:true
+    # use a prefix to avoid cache key conflict in `localStorage`
+    localStoragePrefix:"PrefixToAvoidConflict"
+}
 ```
+
 
 # test
 
