@@ -251,7 +251,7 @@ class Context
         store = @store or {}
         if @hasConfiged or option.exportConfig
             store.config = @toConfig()
-        console.log "save cache",store
+        @_debug "save cache",store,"#{@localStoragePrefix}/cache"
         window.localStorage.setItem "#{@localStoragePrefix}/cache",JSON.stringify store or {}
     saveCacheDelay:()->
         if @_saveCacheDelayTimer
@@ -461,7 +461,7 @@ class Context.BestPractice
                     return -1
             return 0
     checkVerionUpdate:()->
-        checker = new Context({localStoragePrefix:"SybilLeafRequire",dry:true})
+        checker = new Context({localStoragePrefix:@localStoragePrefix,dry:true})
         @_debug "check config"
         checker.loadConfig @config,(err)=>
             if err

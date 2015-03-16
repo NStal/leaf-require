@@ -383,7 +383,7 @@ URI = function(){
       if (this.hasConfiged || option.exportConfig) {
         store.config = this.toConfig();
       }
-      console.log("save cache", store);
+      this._debug("save cache", store, "" + this.localStoragePrefix + "/cache");
       return window.localStorage.setItem("" + this.localStoragePrefix + "/cache", JSON.stringify(store || {}));
     };
 
@@ -701,7 +701,7 @@ URI = function(){
     BestPractice.prototype.checkVerionUpdate = function() {
       var checker;
       checker = new Context({
-        localStoragePrefix: "SybilLeafRequire",
+        localStoragePrefix: this.localStoragePrefix,
         dry: true
       });
       this._debug("check config");
