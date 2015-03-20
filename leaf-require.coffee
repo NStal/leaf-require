@@ -424,8 +424,8 @@ class Context.BestPractice
                 if err
                     @errorHint()
                     return
+                setTimeout @checkVerionUpdate.bind(this),0
                 @context.require @entry
-                @checkVerionUpdate()
                 return
         else
             @context.loadConfig @config,(err)=>
@@ -471,7 +471,9 @@ class Context.BestPractice
             checker.name = "checker"
             @_debug "check config loaded"
             # we use semantic version like 1.2.3.abc
-            if (@semanticCompare checker.version,@context.version) > 0
+            # as long as the version changed, we upgrades
+            # this allow us to rolling back
+            if (@semanticCompare checker.version,@context.version) isnt 0
                 @_debug @context.version,"<",checker.version
                 @_debug "check config detect updates, load it"
                 checker.load (err)=>

@@ -630,8 +630,8 @@ URI = function(){
               _this.errorHint();
               return;
             }
+            setTimeout(_this.checkVerionUpdate.bind(_this), 0);
             _this.context.require(_this.entry);
-            _this.checkVerionUpdate();
           };
         })(this));
       } else {
@@ -713,7 +713,7 @@ URI = function(){
           }
           checker.name = "checker";
           _this._debug("check config loaded");
-          if ((_this.semanticCompare(checker.version, _this.context.version)) > 0) {
+          if ((_this.semanticCompare(checker.version, _this.context.version)) !== 0) {
             _this._debug(_this.context.version, "<", checker.version);
             _this._debug("check config detect updates, load it");
             return checker.load(function(err) {
