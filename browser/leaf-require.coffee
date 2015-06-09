@@ -486,7 +486,8 @@ class Context.BestPractice
                     checker.saveCache()
                     @updateConfirm (result)->
                         if result
-                            window.location = window.location.toString()
+                            if not window.location.reload?()
+                                window.location = window.location.toString()
             else
                 @_debug "check config complete, no updates: version #{checker.version}"
 

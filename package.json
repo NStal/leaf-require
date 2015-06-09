@@ -1,12 +1,31 @@
 {
-    "name": "leaf-require",
-    "version": "0.0.1",
-    
-    "scripts": {
-        "test": "grunt test"
-    },
-    "devDependencies": {
-        "grunt-contrib-connect": "*",
-        "grunt-contrib-watch": "*"
-    }
+  "name": "leaf-require",
+  "version": "0.0.1",
+  "description": "A experimental lib allow you use nodejs style sync require in browser without precompile ... written in coffee.",
+  "main": "bestPractice.js",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "dependencies": {
+    "grunt-contrib-watch": "^0.5.3",
+    "grunt": "^0.4.2",
+    "grunt-contrib-connect": "^0.7.1"
+  },
+  "devDependencies": {
+    "mocha": "^1.21.4"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NStal/leaf-require.git"
+  },
+  "author": "NStal",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/NStal/leaf-require/issues"
+  },
+  "homepage": "https://github.com/NStal/leaf-require"
 }

@@ -1,6 +1,6 @@
 # leaf-require
 
-A experiment lib allow you use nodejs style sync require in browser without precompile ... written in coffee. 
+A experimental lib allow you use nodejs style sync require in browser without precompile ... written in coffee. 
 
 ## Feature
 * do what common module do.
@@ -32,6 +32,7 @@ echo $version > ./version
 leafjs-require ./js -r "./js" --set-version "0.0.0."$version -o ./require.json --excludes ./js/init.js,./js/lib/leaf-require.js
 ```
 
+
 ```html
 <!doctype html>
 <html>
@@ -44,6 +45,7 @@ leafjs-require ./js -r "./js" --set-version "0.0.0."$version -o ./require.json -
   </body>
 </html>
 ```
+
 
 Then we write a init.coffee to setup .
 
@@ -58,7 +60,8 @@ loader = new LeafRequire.BestPractice({
 loader.run()
 ```
 
-require.json may looks like below, // is invalid for json, so don't add them to your json file
+
+require.json may looks like below, `//` is invalid for json, so don't add them to your json file
 
 ```javascript
 {
@@ -103,11 +106,14 @@ require.json may looks like below, // is invalid for json, so don't add them to 
 }
 ```
 
+
 You can easily generate this config by using leafjs-util. You can generate the above codes at ```example/``` directory of this repo.
+
 ```bash
 sudo npm install -g leafjs-util
 
 leafjs-require -h   # print the help message
+
 # The config will be print to stdout.
 # You can also use -o option to specify a file to store it.
 # Note, if -o with an exists file, leafjs-require 
@@ -115,14 +121,17 @@ leafjs-require -h   # print the help message
 # You can give a -f option to force overwrite and get rid of this behavior.
 ```
 
+
+
 ### difference with commonjs module
-```require("a.js")``` will be /{root}/{requiringScriptPath}/a.js
+`require("a.js")` will be /{root}/{requiringScriptPath}/a.js
 
-```require("/a.js")``` will be /{root}/a.js
+`require("/a.js")` will be /{root}/a.js
 
-```require("/a")``` will be /{root}/a or then /{root}/a.js
+`require("/a")` will be /{root}/a or then /{root}/a.js
 
 ### useful features in BestPractice
+
 ```coffee-script
 new BestPractive {
     errorHint:()->
@@ -140,11 +149,17 @@ new BestPractive {
 ```
 
 
+
+
+
+
+
 # test
 
 Testcase require nodejs and grunt
 
 ```bash
+#!/bin/bash
 npm install
 npm test
 ```

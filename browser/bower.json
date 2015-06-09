@@ -1,0 +1,18 @@
+{
+  "name": "leaf-require",
+  "version": "0.0.1",
+  "homepage": "https://github.com/NStal/leaf-require",
+  "authors": [
+    "NStal <nstalmail@gmail.com>"
+  ],
+  "description": "A node.js style browser script loader",
+  "main": "leaf-require.js",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
