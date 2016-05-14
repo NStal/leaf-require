@@ -58,7 +58,7 @@ URI = function(){
     }
     return {URI:URI}
 }();
-  var Context, Script, exports,
+  var BundleBuilder, Context, Script,
     slice = [].slice;
 
   Context = (function() {
@@ -90,6 +90,10 @@ URI = function(){
       })(this);
       return XHR.send();
     };
+
+    Context.prototype.createFakeContextWebWorker = function(pathes, entry) {};
+
+    Context.prototype.createContextWebWorker = function(pathes, entry) {};
 
     function Context(option) {
       if (option == null) {
@@ -500,7 +504,7 @@ URI = function(){
         return;
       }
       if (this.scriptContent) {
-        this.parse(this.scriptContent);
+        this.importToDocument();
         return;
       }
       file = this._restoreScriptContentFromStore();
@@ -510,9 +514,10 @@ URI = function(){
         console.debug("return from", this.context.name, this.loadPath);
         this._debug("cache found and do the restore");
         this._debug(this.loadPath + " from cache");
+        this.scriptContent = file.content;
         setTimeout(((function(_this) {
           return function() {
-            return _this.parse(file.content);
+            return _this.importToDocument();
           };
         })(this)), 0);
         return;
@@ -524,16 +529,17 @@ URI = function(){
             return;
           }
           _this.scriptContent = content;
-          return _this.parse(content);
+          return _this.importToDocument();
         };
       })(this));
     };
 
-    Script.prototype.parse = function(scriptContent) {
-      var code, mapDataUrl, script;
+    Script.prototype.importToDocument = function() {
+      var code, mapDataUrl, script, scriptContent;
       if (this.script) {
         null;
       }
+      scriptContent = this.scriptContent;
       this._saveScriptContentToStore(scriptContent);
       if (this.context.dry && this._loadCallback) {
         this.dryReady = true;
@@ -551,9 +557,11 @@ URI = function(){
       return document.body.appendChild(script);
     };
 
-    Script.prototype.createSourceMapUrl = function(content) {
-      var _, i, index, j, len, line, map, offset, ref, ref1, result, url;
-      offset = 11;
+    Script.prototype.createSourceMapUrl = function(content, offset) {
+      var _, i, index, j, len, line, map, ref, ref1, result, url;
+      if (offset == null) {
+        offset = 11;
+      }
       map = {
         "version": 3,
         "file": this.loadPath,
@@ -754,10 +762,83 @@ URI = function(){
 
   })();
 
-  if (!exports) {
-    exports = window;
+  BundleBuilder = (function() {
+    BundleBuilder.fromStandAloneConfig = function(config) {
+      var builder, scripts, url;
+      url = URI.URI;
+      scripts = config.js.files.map(function(file) {
+        return {
+          path: url.normalize(file.path),
+          content: file.scriptContent
+        };
+      });
+      builder = new BundleBuilder({
+        contextName: config.contextName
+      });
+      builder.addScript.apply(builder, scripts);
+      if (config.js.main) {
+        builder.addEntryModule(config.js.main);
+      }
+      return builder;
+    };
+
+    function BundleBuilder(option) {
+      if (option == null) {
+        option = {};
+      }
+      this.prefixCodes = [];
+      this.scripts = [];
+      this.suffixCodes = [];
+      this.contextName = option.contextName || "GlobalContext";
+    }
+
+    BundleBuilder.prototype.addScript = function() {
+      var scripts;
+      scripts = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+      return this.scripts.push(scripts);
+    };
+
+    BundleBuilder.prototype.addPrefixFunction = function(fn) {
+      return this.prefixCodes.push("(" + (fn.toString()) + ")()");
+    };
+
+    BundleBuilder.prototype.addEntryFunction = function(fn) {
+      return this.suffixCodes.push("(" + (fn.toString()) + ")()");
+    };
+
+    BundleBuilder.prototype.addEntryModule = function(name) {
+      return this.suffixCodes.push("(function(){" + this.contextName + ".require(\"" + name + "\")})()");
+    };
+
+    BundleBuilder.prototype.generateBundle = function() {
+      var core, prefix, scripts, suffix;
+      prefix = this.prefixCodes.join(";\n");
+      suffix = this.suffixCodes.join(";\n");
+      scripts = this.scripts.map((function(_this) {
+        return function(script) {
+          return _this.moduleTemplate.replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content);
+        };
+      })(this));
+      core = this.coreTemplate.replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n"));
+      return [prefix, core, suffix].join(";\n");
+    };
+
+    BundleBuilder.prototype.moduleTemplate = "(function(){\nvar require = {{contextName}}.requireModule.bind({{contextName}},\"{{currentModulePath}}\");\nvar module = {};\nmodule.exports = {};\nvar exports = module.exports;\nfunction exec(){\n    {{currentModuleContent}}\n}\n{{contextName}}.setModule(\"{{currentModulePath}}\",module,exec);\n})()";
+
+    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nURI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i in aUriSegments) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}()\n{{contextName}} = {\n    modules:{},\n    require:function(path){\n        return this.requireModule(null,path);\n    },\n    requireModule:function(fromPath,path){\n        var url = URI.URI\n        if(fromPath){\n            var realPath = url.resolve(fromPath,path)\n        }else{\n            var realPath = url.normalize(path)\n        }\n        if(realPath[0] == \"/\"){\n            realPath = realPath.slice(1)\n        }\n        if(realPath.slice(-3) !== \".js\"){\n            realPath += \".js\"\n        }\n        if(!this.modules[realPath]){\n            throw new Error(\"module \" + path + \" required at \" + (fromPath || \"/\") + \" is not exists\")\n        }\n        var module = this.modules[realPath];\n        if(module.exports){\n            return module.exports\n        }\n        if(module.isRequiring){\n            return module.module.exports\n        }\n        module.isRequiring = true\n        module.exec()\n        module.exports = module.module.exports\n        module.isRequiring = false\n        return module.exports\n    },\n    setModule:function(modulePath,module,exec){\n        if(modulePath.slice(-3)!==\".js\"){\n            modulePath += \".js\"\n        }\n        this.modules[modulePath] = {\n            module:module,\n            exec:exec\n        }\n    }\n};\n{{modules}};\n})()";
+
+    return BundleBuilder;
+
+  })();
+
+  Context.BundleBuilder = BundleBuilder;
+
+  if (typeof window !== "undefined") {
+    window.module = {
+      exports: window
+    };
   }
 
-  exports.LeafRequire = Context;
+  module.exports.LeafRequire = Context;
 
 }).call(this);

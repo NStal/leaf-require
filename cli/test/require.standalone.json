@@ -21,5 +21,6 @@
         ]
     },
     "debug": false,
-    "cache": false
+    "cache": false,
+    "contextName": "GlobalContext"
 }

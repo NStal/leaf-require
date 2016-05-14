@@ -69,20 +69,24 @@ files = files.map (file)->
     return result
 config.js.root = program.root or ""
 config.js.files = files
-console.error program.compile
-if program.compile
+config.contextName = contextName or "GlobalContext"
+#if program.compile
+#
+#    moduleTemplate = fs.readFileSync (pathModule.resolve __dirname,"../module.template.js"),"utf8"
+#    standAloneTemplate = fs.readFileSync (pathModule.resolve __dirname,"../standalone.template.js"),"utf8"
+#    moduleContentArray = []
+#    for file in files
+#        moduleContentArray.push(moduleTemplate
+#            .replace(/{{contextName}}/g,contextName)
+#            .replace(/{{currentModulePath}}/g,file.path)
+#            .replace("{{currentModuleContent}}",file.scriptContent)
+#        )
+#    javascriptContent = standAloneTemplate.replace(/{{contextName}}/g,contextName).replace("{{modules}}",moduleContentArray.join("\n")).replace(/{{mainModule}}/g,"\"#{mainModule}\"" or "null")
+#    content = javascriptContent
 
-    moduleTemplate = fs.readFileSync (pathModule.resolve __dirname,"../module.template.js"),"utf8"
-    standAloneTemplate = fs.readFileSync (pathModule.resolve __dirname,"../standalone.template.js"),"utf8"
-    moduleContentArray = []
-    for file in files
-        moduleContentArray.push(moduleTemplate
-            .replace(/{{contextName}}/g,contextName)
-            .replace(/{{currentModulePath}}/g,file.path)
-            .replace("{{currentModuleContent}}",file.scriptContent)
-        )
-    javascriptContent = standAloneTemplate.replace(/{{contextName}}/g,contextName).replace("{{modules}}",moduleContentArray.join("\n")).replace(/{{mainModule}}/g,"\"#{mainModule}\"" or "null")
-    content = javascriptContent
+if program.compile
+    LeafRequire = (require "./leaf-require.coffee").LeafRequire
+    content = LeafRequire.BundleBuilder.fromStandAloneConfig(config).generateBundle()
 else
     content = JSON.stringify config,null,indentCount
 if outputFile

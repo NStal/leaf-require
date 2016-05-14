@@ -531,7 +531,7 @@ class BundleBuilder
     addEntryFunction:(fn)->
         @suffixCodes.push "(#{fn.toString()})()"
     addEntryModule:(name)->
-        @suffixCodes.push "(function(){#{@contextName}.require(\"#{name}\")})()"
+        @suffixCodes.push "(function(){require(\"#{name}\")})()"
     generateBundle:()->
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")

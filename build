@@ -1,0 +1,2 @@
+coffee -c ./browser/leaf-require.coffee
+cp ./browser/leaf-require.coffee ./cli/lib/leaf-require.coffee
