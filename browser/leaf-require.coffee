@@ -76,8 +76,15 @@ class Context
             if XHR.readyState is 0
                 callback new Error "Network Error"
         XHR.send()
-    createFakeContextWebWorker:(pathes,entry)->
-    createContextWebWorker:(pathes,entry)->
+    createDedicateWorker:(pathes,option = {})->
+        bundle = new BundleBuilder({contextName:option.contextName or @globalName+"Worker"})
+        for path in pathes
+            bundle.addScript @getRequiredScript(path)
+        if option.entryModule
+            bundle.addEntryModule option.entryModule
+        else if option.entryFunction
+            bundle.addEntryFunction option.entryFunction
+        return bundle.generateWorker()
     constructor:(option = {})->
         @id = Context.id++
         Context.instances[@id] = this
@@ -181,7 +188,7 @@ class Context
         for file in files
             @use file
         @store.config = config
-    require:(path,fromScript)->
+    getRequiredScript:(path,fromScript)->
         url = URI.URI
         if fromScript
             realPath = url.resolve(fromScript.scriptPath,path)
@@ -192,6 +199,9 @@ class Context
         script = @getScript(realPath)
         if not script
             throw new Error "module #{realPath} not found"
+        return script
+    require:(path,fromScript)->
+        script = @getRequiredScript(path,fromScript)
         return script.beRequired()
     restoreCache:()->
         try
@@ -510,7 +520,7 @@ class BundleBuilder
         scripts = config.js.files.map (file)->
             return {
                 path:url.normalize(file.path)
-                content:file.scriptContent
+                scriptContent:file.scriptContent
             }
         builder = new BundleBuilder({
             contextName:config.contextName
@@ -524,14 +534,26 @@ class BundleBuilder
         @scripts = []
         @suffixCodes = []
         @contextName = option.contextName or "GlobalContext"
-    addScript:(scripts...)->
-        @scripts.push scripts
+    addScript:()->
+        scripts = (item for item in arguments)
+        url = URI.URI
+        @scripts.push (scripts.map (file)=>
+            return {
+                path:url.normalize(file.path)
+                content:file.scriptContent
+            }
+        )...
     addPrefixFunction:(fn)->
         @prefixCodes.push "(#{fn.toString()})()"
     addEntryFunction:(fn)->
         @suffixCodes.push "(#{fn.toString()})()"
     addEntryModule:(name)->
         @suffixCodes.push "(function(){#{@contextName}.require(\"#{name}\")})()"
+    generateWorker:()->
+        js = @generateBundle()
+        url = URL.createObjectURL new Blob([js])
+        worker = new Worker(url)
+        return worker
     generateBundle:()->
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")
@@ -543,7 +565,86 @@ class BundleBuilder
         core = @coreTemplate
             .replace(/{{contextName}}/g,@contextName)
             .replace("{{modules}}",scripts.join(";\n"))
+            .replace("{{createContextProcedure}}",@getPureFunctionProcedure("createBundleContext"))
+            .replace("{{BundleBuilderCode}}",@getPureClassCode(BundleBuilder))
         return [prefix,core,suffix].join(";\n")
+    getPureFunctionProcedure:(name)->
+        return "(#{@["$$"+name].toString()})()"
+    getPureClassCode:(ClassObject,className)->
+        if not className
+            className = ClassObject.name
+        constructor =  ClassObject.toString()
+        template = "#{className}.prototype[\"{{prop}}\"] = {{value}};"
+        codes = []
+        for prop,value of ClassObject.prototype
+            if typeof value is "function"
+                value = value.toString()
+            else
+                value = JSON.stringify value
+            codes.push template.replace("{{prop}}",prop).replace("{{value}}",value)
+
+        return """
+        #{className} = #{constructor.toString()}
+        #{codes.join("\n")}
+        """
+    $$createBundleContext:()->
+        return {
+            modules:{}
+            createDedicateWorker:(pathes,option)->
+                bundle = new BundleBuilder({contextName:option.contextName or (@globalName or "GlobalContext")+"Worker"})
+                for path in pathes
+                    module = @getRequiredModule(path)
+                    script = {
+                        path
+                        scriptContent:"(#{module.exec.toString()})()"
+                    }
+                    bundle.addScript script
+                if option.entryModule
+                    bundle.addEntryModule option.entryModule
+                else if option.entryFunction
+                    bundle.addEntryFunction option.entryFunction
+                return bundle.generateWorker()
+            require:(path)->
+                return this.requireModule(null,path)
+            getRequiredModuleContent:(path,fromPath)->
+                module = @getRequiredModule(path,fromPath)
+                return "(#{module.exec.toString()})()"
+            getRequiredModule:(path,fromPath)->
+                url = URI.URI
+                if fromPath
+                    realPath = url.resolve(fromPath,path)
+                else
+                    realPath = url.normalize(path)
+                if realPath[0] is "/"
+                    realPath = realPath.slice(1)
+                if realPath.slice(-3) isnt ".js"
+                    realPath += ".js"
+                if !this.modules[realPath]
+                    throw new Error("module " + path + " required at " + (fromPath || "/") + " is not exists")
+
+                module = this.modules[realPath];
+                return module
+            requireModule:(fromPath,path)->
+                module = @getRequiredModule(path,fromPath)
+                if module.exports
+                    return module.exports
+                if module.isRequiring
+                    return module.module.exports
+
+                module.isRequiring = true
+                module.exec()
+                module.exports = module.module.exports
+                module.isRequiring = false
+                return module.exports
+            setModule:(modulePath,module,exec)->
+                if modulePath.slice(-3) isnt ".js"
+                    modulePath += ".js"
+
+                this.modules[modulePath] = {
+                    module:module,
+                    exec:exec
+                }
+        }
     moduleTemplate:"""(function(){
     var require = {{contextName}}.requireModule.bind({{contextName}},"{{currentModulePath}}");
     var module = {};
@@ -611,51 +712,10 @@ class BundleBuilder
             return URI.resolve("",url);
         }
         return {URI:URI}
-    }()
-    {{contextName}} = {
-        modules:{},
-        require:function(path){
-            return this.requireModule(null,path);
-        },
-        requireModule:function(fromPath,path){
-            var url = URI.URI
-            if(fromPath){
-                var realPath = url.resolve(fromPath,path)
-            }else{
-                var realPath = url.normalize(path)
-            }
-            if(realPath[0] == "/"){
-                realPath = realPath.slice(1)
-            }
-            if(realPath.slice(-3) !== ".js"){
-                realPath += ".js"
-            }
-            if(!this.modules[realPath]){
-                throw new Error("module " + path + " required at " + (fromPath || "/") + " is not exists")
-            }
-            var module = this.modules[realPath];
-            if(module.exports){
-                return module.exports
-            }
-            if(module.isRequiring){
-                return module.module.exports
-            }
-            module.isRequiring = true
-            module.exec()
-            module.exports = module.module.exports
-            module.isRequiring = false
-            return module.exports
-        },
-        setModule:function(modulePath,module,exec){
-            if(modulePath.slice(-3)!==".js"){
-                modulePath += ".js"
-            }
-            this.modules[modulePath] = {
-                module:module,
-                exec:exec
-            }
-        }
-    };
+    }();
+    {{BundleBuilderCode}}
+    {{contextName}} = {{createContextProcedure}};
+    {{contextName}}.contextName = "{{contextName}}";
     {{modules}};
 })()"""
 

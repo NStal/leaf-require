@@ -91,9 +91,25 @@ URI = function(){
       return XHR.send();
     };
 
-    Context.prototype.createFakeContextWebWorker = function(pathes, entry) {};
-
-    Context.prototype.createContextWebWorker = function(pathes, entry) {};
+    Context.prototype.createDedicateWorker = function(pathes, option) {
+      var bundle, i, len, path;
+      if (option == null) {
+        option = {};
+      }
+      bundle = new BundleBuilder({
+        contextName: option.contextName || this.globalName + "Worker"
+      });
+      for (i = 0, len = pathes.length; i < len; i++) {
+        path = pathes[i];
+        bundle.addScript(this.getRequiredScript(path));
+      }
+      if (option.entryModule) {
+        bundle.addEntryModule(option.entryModule);
+      } else if (option.entryFunction) {
+        bundle.addEntryFunction(option.entryFunction);
+      }
+      return bundle.generateWorker();
+    };
 
     function Context(option) {
       if (option == null) {
@@ -256,7 +272,7 @@ URI = function(){
       return this.store.config = config;
     };
 
-    Context.prototype.require = function(path, fromScript) {
+    Context.prototype.getRequiredScript = function(path, fromScript) {
       var realPath, script, url;
       url = URI.URI;
       if (fromScript) {
@@ -271,6 +287,12 @@ URI = function(){
       if (!script) {
         throw new Error("module " + realPath + " not found");
       }
+      return script;
+    };
+
+    Context.prototype.require = function(path, fromScript) {
+      var script;
+      script = this.getRequiredScript(path, fromScript);
       return script.beRequired();
     };
 
@@ -769,7 +791,7 @@ URI = function(){
       scripts = config.js.files.map(function(file) {
         return {
           path: url.normalize(file.path),
-          content: file.scriptContent
+          scriptContent: file.scriptContent
         };
       });
       builder = new BundleBuilder({
@@ -793,9 +815,25 @@ URI = function(){
     }
 
     BundleBuilder.prototype.addScript = function() {
-      var scripts;
-      scripts = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-      return this.scripts.push(scripts);
+      var item, ref, scripts, url;
+      scripts = (function() {
+        var i, len, results;
+        results = [];
+        for (i = 0, len = arguments.length; i < len; i++) {
+          item = arguments[i];
+          results.push(item);
+        }
+        return results;
+      }).apply(this, arguments);
+      url = URI.URI;
+      return (ref = this.scripts).push.apply(ref, scripts.map((function(_this) {
+        return function(file) {
+          return {
+            path: url.normalize(file.path),
+            content: file.scriptContent
+          };
+        };
+      })(this)));
     };
 
     BundleBuilder.prototype.addPrefixFunction = function(fn) {
@@ -810,6 +848,14 @@ URI = function(){
       return this.suffixCodes.push("(function(){" + this.contextName + ".require(\"" + name + "\")})()");
     };
 
+    BundleBuilder.prototype.generateWorker = function() {
+      var js, url, worker;
+      js = this.generateBundle();
+      url = URL.createObjectURL(new Blob([js]));
+      worker = new Worker(url);
+      return worker;
+    };
+
     BundleBuilder.prototype.generateBundle = function() {
       var core, prefix, scripts, suffix;
       prefix = this.prefixCodes.join(";\n");
@@ -819,13 +865,117 @@ URI = function(){
           return _this.moduleTemplate.replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content);
         };
       })(this));
-      core = this.coreTemplate.replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n"));
+      core = this.coreTemplate.replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder));
       return [prefix, core, suffix].join(";\n");
+    };
+
+    BundleBuilder.prototype.getPureFunctionProcedure = function(name) {
+      return "(" + (this["$$" + name].toString()) + ")()";
+    };
+
+    BundleBuilder.prototype.getPureClassCode = function(ClassObject, className) {
+      var codes, constructor, prop, ref, template, value;
+      if (!className) {
+        className = ClassObject.name;
+      }
+      constructor = ClassObject.toString();
+      template = className + ".prototype[\"{{prop}}\"] = {{value}};";
+      codes = [];
+      ref = ClassObject.prototype;
+      for (prop in ref) {
+        value = ref[prop];
+        if (typeof value === "function") {
+          value = value.toString();
+        } else {
+          value = JSON.stringify(value);
+        }
+        codes.push(template.replace("{{prop}}", prop).replace("{{value}}", value));
+      }
+      return className + " = " + (constructor.toString()) + "\n" + (codes.join("\n"));
+    };
+
+    BundleBuilder.prototype.$$createBundleContext = function() {
+      return {
+        modules: {},
+        createDedicateWorker: function(pathes, option) {
+          var bundle, i, len, module, path, script;
+          bundle = new BundleBuilder({
+            contextName: option.contextName || (this.globalName || "GlobalContext") + "Worker"
+          });
+          for (i = 0, len = pathes.length; i < len; i++) {
+            path = pathes[i];
+            module = this.getRequiredModule(path);
+            script = {
+              path: path,
+              scriptContent: "(" + (module.exec.toString()) + ")()"
+            };
+            bundle.addScript(script);
+          }
+          if (option.entryModule) {
+            bundle.addEntryModule(option.entryModule);
+          } else if (option.entryFunction) {
+            bundle.addEntryFunction(option.entryFunction);
+          }
+          return bundle.generateWorker();
+        },
+        require: function(path) {
+          return this.requireModule(null, path);
+        },
+        getRequiredModuleContent: function(path, fromPath) {
+          var module;
+          module = this.getRequiredModule(path, fromPath);
+          return "(" + (module.exec.toString()) + ")()";
+        },
+        getRequiredModule: function(path, fromPath) {
+          var module, realPath, url;
+          url = URI.URI;
+          if (fromPath) {
+            realPath = url.resolve(fromPath, path);
+          } else {
+            realPath = url.normalize(path);
+          }
+          if (realPath[0] === "/") {
+            realPath = realPath.slice(1);
+          }
+          if (realPath.slice(-3) !== ".js") {
+            realPath += ".js";
+          }
+          if (!this.modules[realPath]) {
+            throw new Error("module " + path + " required at " + (fromPath || "/") + " is not exists");
+          }
+          module = this.modules[realPath];
+          return module;
+        },
+        requireModule: function(fromPath, path) {
+          var module;
+          module = this.getRequiredModule(path, fromPath);
+          if (module.exports) {
+            return module.exports;
+          }
+          if (module.isRequiring) {
+            return module.module.exports;
+          }
+          module.isRequiring = true;
+          module.exec();
+          module.exports = module.module.exports;
+          module.isRequiring = false;
+          return module.exports;
+        },
+        setModule: function(modulePath, module, exec) {
+          if (modulePath.slice(-3) !== ".js") {
+            modulePath += ".js";
+          }
+          return this.modules[modulePath] = {
+            module: module,
+            exec: exec
+          };
+        }
+      };
     };
 
     BundleBuilder.prototype.moduleTemplate = "(function(){\nvar require = {{contextName}}.requireModule.bind({{contextName}},\"{{currentModulePath}}\");\nvar module = {};\nmodule.exports = {};\nvar exports = module.exports;\nfunction exec(){\n    {{currentModuleContent}}\n}\n{{contextName}}.setModule(\"{{currentModulePath}}\",module,exec);\n})()";
 
-    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nURI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i in aUriSegments) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}()\n{{contextName}} = {\n    modules:{},\n    require:function(path){\n        return this.requireModule(null,path);\n    },\n    requireModule:function(fromPath,path){\n        var url = URI.URI\n        if(fromPath){\n            var realPath = url.resolve(fromPath,path)\n        }else{\n            var realPath = url.normalize(path)\n        }\n        if(realPath[0] == \"/\"){\n            realPath = realPath.slice(1)\n        }\n        if(realPath.slice(-3) !== \".js\"){\n            realPath += \".js\"\n        }\n        if(!this.modules[realPath]){\n            throw new Error(\"module \" + path + \" required at \" + (fromPath || \"/\") + \" is not exists\")\n        }\n        var module = this.modules[realPath];\n        if(module.exports){\n            return module.exports\n        }\n        if(module.isRequiring){\n            return module.module.exports\n        }\n        module.isRequiring = true\n        module.exec()\n        module.exports = module.module.exports\n        module.isRequiring = false\n        return module.exports\n    },\n    setModule:function(modulePath,module,exec){\n        if(modulePath.slice(-3)!==\".js\"){\n            modulePath += \".js\"\n        }\n        this.modules[modulePath] = {\n            module:module,\n            exec:exec\n        }\n    }\n};\n{{modules}};\n})()";
+    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nURI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i in aUriSegments) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}();\n{{BundleBuilderCode}}\n{{contextName}} = {{createContextProcedure}};\n{{contextName}}.contextName = \"{{contextName}}\";\n{{modules}};\n})()";
 
     return BundleBuilder;
 

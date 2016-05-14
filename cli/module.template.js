@@ -1,5 +1,5 @@
 ;(function(){
-    var require = window.{{contextName}}.requireModule.bind(window.{{contextName}},"{{currentModulePath}}");
+    var require = {{contextName}}.requireModule.bind(window.{{contextName}},"{{currentModulePath}}");
     var module = {};
     module.exports = {};
     var exports = module.exports;

@@ -11,4 +11,6 @@
 
   bp.run();
 
+  window.GlobalContext = bp.context;
+
 }).call(this);

@@ -4,16 +4,24 @@
         "root": "script",
         "files": [
             {
+                "path": "common.js",
+                "hash": "ffd67b"
+            },
+            {
                 "path": "dep.js",
-                "hash": "00c11c"
+                "hash": "1958b9"
             },
             {
                 "path": "init.js",
-                "hash": "f94d0e"
+                "hash": "bf1214"
             },
             {
                 "path": "main.js",
-                "hash": "46827b"
+                "hash": "fd2240"
+            },
+            {
+                "path": "worker.js",
+                "hash": "6e94b0"
             }
         ]
     },
