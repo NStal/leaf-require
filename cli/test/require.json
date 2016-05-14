@@ -1,0 +1,22 @@
+{
+    "name": "leaf-require",
+    "js": {
+        "root": "script",
+        "files": [
+            {
+                "path": "dep.js",
+                "hash": "00c11c"
+            },
+            {
+                "path": "init.js",
+                "hash": "f94d0e"
+            },
+            {
+                "path": "main.js",
+                "hash": "46827b"
+            }
+        ]
+    },
+    "debug": false,
+    "cache": false
+}

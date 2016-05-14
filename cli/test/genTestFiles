@@ -1,0 +1,7 @@
+#!/bin/bash
+echo "generating require.debug.json"
+coffee ../lib/cli.coffee -f -r "script" ./script > require.json
+echo "generating require.standalone.json"
+coffee ../lib/cli.coffee -f -r "script" --stand-alone ./script > require.standalone.json
+echo "generating bundle.js"
+coffee ../lib/cli.coffee -f -r "script" --main main --compile ./script > bundle.js

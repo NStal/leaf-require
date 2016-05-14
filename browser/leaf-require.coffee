@@ -58,7 +58,6 @@ URI = function(){
     return {URI:URI}
 }()`
 
-
 class Context
     @id = 0
     @instances = []
@@ -77,6 +76,8 @@ class Context
             if XHR.readyState is 0
                 callback new Error "Network Error"
         XHR.send()
+    createFakeContextWebWorker:(pathes,entry)->
+    createContextWebWorker:(pathes,entry)->
     constructor:(option = {})->
         @id = Context.id++
         Context.instances[@id] = this
@@ -275,6 +276,8 @@ class Script
         @scriptPath = url.normalize(@path)
         @loadPath = url.resolve(@context.root,file.loadPath or @path)
         @_debug = @context._debug.bind(this)
+        if file.scriptContent
+            @scriptContent = file.scriptContent
     clone:(context)->
         s = new Script(context,{
             @path,@hash,@loadPath
@@ -319,6 +322,9 @@ class Script
         if @isReady
             callback()
             return
+        if @scriptContent
+            @parse()
+            return
         file = @_restoreScriptContentFromStore()
         @_debug "try restore #{@loadPath} from cache",file
         @_debug @hash,file and file.hash
@@ -337,9 +343,10 @@ class Script
                 return
             @scriptContent = content
             @parse content
-    parse:(scriptContent)->
+    importToDocument:()->
         if @script
             null
+        scriptContent = @scriptContent
         @_saveScriptContentToStore(scriptContent)
         if @context.dry and @_loadCallback
             @dryReady = true
@@ -349,6 +356,8 @@ class Script
         code = """
 (function(){
     var require = #{@context.globalName}.getContext(#{@context.id}).getRequire('#{@scriptPath}')
+    require.context = #{@context.globalName}.getContext(#{@context.id})
+    require.LeafRequire = #{@context.globalName}
     var module = {exports:{}};
     var exports = module.exports
     var global = window;
@@ -366,14 +375,12 @@ class Script
         if @context.debug or @context.enableSourceMap
             mapDataUrl = @createSourceMapUrl(scriptContent)
             code += """
-    //# sourceMappingURL=#{mapDataUrl}
+    \n//# sourceMappingURL=#{mapDataUrl}
         """
         @script = script
         script.innerHTML = code
         document.body.appendChild(script)
-    createSourceMapUrl:(content)->
-
-        offset = 9
+    createSourceMapUrl:(content,offset = 11)->
         map = {
             "version" : 3,
             "file": @loadPath,
@@ -392,7 +399,9 @@ class Script
             else
                 result.push ";AACA"
         map.mappings = result.join("")
-        url = URL.createObjectURL new Blob([JSON.stringify(map)],{type:"text/json"})
+        url ="data:application/json;base64,#{btoa unescape encodeURIComponent JSON.stringify(map)}"
+        #url = "data:text/plain;charset=utf-8,#{unescape encodeURIComponent JSON.stringify(map)}"
+        #url = URL.createObjectURL new Blob([JSON.stringify(map)],{type:"text/json"})
         return url
 class Context.BestPractice
     constructor:(option)->
@@ -408,12 +417,16 @@ class Context.BestPractice
         if @debug or @showDebugInfo
             console.debug ?= console.log.bind(console)
             console.debug args...
-    run:()->
+    run:(callback)->
         @context = new LeafRequire({@localStoragePrefix,@enableSourceMap})
         if @debug
             @context.loadConfig @config,()=>
+                console.error "load config QAQ"
                 @context.load ()=>
-                    @context.require @entry
+                    if callback
+                        callback()
+                    else
+                        @context.require @entry
             return
         @context.restoreCache()
         if @context.hasConfiged

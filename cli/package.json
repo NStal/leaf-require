@@ -1,0 +1,32 @@
+{
+  "name": "leaf-require-cli",
+  "version": "0.0.1",
+  "description": "leaf-require builder ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:NStal/leaf-require.git"
+  },
+  "author": "NStal",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/NStal/leaf-require/issues"
+  },
+  "homepage": "https://github.com/NStal/leaf-require",
+  "dependencies": {
+    "cheerio": "^0.17.0",
+    "coffee-script": "^1.9.3",
+    "commander": "^2.3.0",
+    "error-doc": "0.0.4",
+    "less": "^1.7.4",
+    "lodash": "^2.4.1",
+    "wrench": "^1.5.8"
+  },
+  "directories": {
+    "lib": "./lib",
+    "bin": "./bin"
+  }
+}
