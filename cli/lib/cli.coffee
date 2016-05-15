@@ -8,6 +8,7 @@ program = require("commander").usage("[option] <js-folder-root>")
     .option("-r,--root <root patah>","specifty the generated files root name")
     .option("-f,--force-overwrite","force overwrite the file rather than try merging it")
     .option("--excludes <folder or file>","exclude certain folder or file by matching the starts, split by ','")
+    .option("--includes <folder or file>","includes certain folder or file by matching the starts, split by ',', this option will overwrite the excludes.")
     .option("--enable-debug","enable debug mode in config")
     .option("--enable-cache","enable cache in config")
     .option("--set-version <version>","set version for the config")
@@ -25,6 +26,7 @@ standAlone = program.standAlone
 contextName = program.context or "GlobalContext"
 jsIncludePath = program.args[0] or "./"
 excludes = (program.excludes or "").split(",").map((item)->item.trim()).filter (item)->item
+includes = (program.excludes or "").split(",").map((item)->item.trim()).filter (item)->item
 version = program.setVersion or null
 mainModule = program.main or null
 enableDebug = program.enableDebug and true or false
@@ -49,9 +51,13 @@ files = wrench.readdirSyncRecursive jsIncludePath
 fileWhiteList = [/\.js$/i]
 files = files.filter (file)->
     filePath = pathModule.resolve pathModule.join jsIncludePath,file
+    for include in includes
+        includePath = pathModule.resolve include
+        if filePath is includePath or filePath.indexOf(includePath+"/") is 0
+            return true
     for exclude in excludes
         excludePath = pathModule.resolve exclude
-        if filePath is excludePath or filePath.indexOf(excludePath+"/")  is 0
+        if filePath is excludePath or filePath.indexOf(excludePath+"/") is 0
             return false
     for white in fileWhiteList
         if white.test file
