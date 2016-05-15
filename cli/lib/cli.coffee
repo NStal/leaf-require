@@ -54,7 +54,10 @@ files = files.filter (file)->
     for include in includes
         includePath = pathModule.resolve include
         if filePath is includePath or filePath.indexOf(includePath+"/") is 0
-            return true
+            for white in fileWhiteList
+                if white.test file
+                    return true
+            return false
     for exclude in excludes
         excludePath = pathModule.resolve exclude
         if filePath is excludePath or filePath.indexOf(excludePath+"/") is 0
