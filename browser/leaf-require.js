@@ -12,7 +12,7 @@
  * @param {string} baseuri the base URI (must be absolute) to resolve against
  */
 
-URI = function(){
+var URI = function(){
     function resolveUri(sUri, sBaseUri) {
     if (sUri == '' || sUri.charAt(0) == '#') return sUri;
     var hUri = getUriComponents(sUri);
@@ -92,7 +92,7 @@ URI = function(){
     };
 
     Context.prototype.createDedicateWorker = function(pathes, option) {
-      var bundle, i, len, path;
+      var bundle, i, j, len, len1, path, script, scripts;
       if (option == null) {
         option = {};
       }
@@ -101,14 +101,31 @@ URI = function(){
       });
       for (i = 0, len = pathes.length; i < len; i++) {
         path = pathes[i];
-        bundle.addScript(this.getRequiredScript(path));
+        if (typeof path === "string") {
+          scripts = [this.getRequiredScript(path)];
+        } else if (path.test) {
+          scripts = this.getMatchingScripts(path);
+        } else {
+          continue;
+        }
+        for (j = 0, len1 = scripts.length; j < len1; j++) {
+          script = scripts[j];
+          bundle.addScript(script);
+        }
+      }
+      if (option.entryData) {
+        bundle.addEntryData(option.entryData, option.entryDataName || "EntryData");
       }
       if (option.entryModule) {
         bundle.addEntryModule(option.entryModule);
       } else if (option.entryFunction) {
         bundle.addEntryFunction(option.entryFunction);
       }
-      return bundle.generateWorker();
+      if (option.fake) {
+        return bundle.generateFakeWorker(option);
+      } else {
+        return bundle.generateWorker(option);
+      }
     };
 
     function Context(option) {
@@ -145,14 +162,14 @@ URI = function(){
     };
 
     Context.prototype.use = function() {
-      var file, files, i, len, results;
+      var file, files, i, len, results1;
       files = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-      results = [];
+      results1 = [];
       for (i = 0, len = files.length; i < len; i++) {
         file = files[i];
-        results.push(this.scripts.push(new Script(this, file)));
+        results1.push(this.scripts.push(new Script(this, file)));
       }
-      return results;
+      return results1;
     };
 
     Context.prototype._debug = function() {
@@ -161,6 +178,19 @@ URI = function(){
       if (this.debug) {
         return console.debug.apply(console, args);
       }
+    };
+
+    Context.prototype.getMatchingScripts = function(path) {
+      var i, len, ref, result, script;
+      result = [];
+      ref = this.scripts;
+      for (i = 0, len = ref.length; i < len; i++) {
+        script = ref[i];
+        if (path.test(script.scriptPath)) {
+          result.push(script);
+        }
+      }
+      return result;
     };
 
     Context.prototype.getScript = function(path) {
@@ -646,7 +676,6 @@ URI = function(){
       if (this.debug) {
         this.context.loadConfig(this.config, (function(_this) {
           return function() {
-            console.error("load config QAQ");
             return _this.context.load(function() {
               if (callback) {
                 return callback();
@@ -817,13 +846,13 @@ URI = function(){
     BundleBuilder.prototype.addScript = function() {
       var item, ref, scripts, url;
       scripts = (function() {
-        var i, len, results;
-        results = [];
+        var i, len, results1;
+        results1 = [];
         for (i = 0, len = arguments.length; i < len; i++) {
           item = arguments[i];
-          results.push(item);
+          results1.push(item);
         }
-        return results;
+        return results1;
       }).apply(this, arguments);
       url = URI.URI;
       return (ref = this.scripts).push.apply(ref, scripts.map((function(_this) {
@@ -836,24 +865,118 @@ URI = function(){
       })(this)));
     };
 
+    BundleBuilder.prototype.createFakeWorker = function() {
+      var guestend, hostend;
+      hostend = {
+        postMessage: function(message) {
+          return typeof guestend.onmessage === "function" ? guestend.onmessage({
+            data: message
+          }) : void 0;
+        },
+        addEventListener: function(event, handler) {
+          if (event === "message") {
+            return this.onmessage = handler;
+          }
+        }
+      };
+      guestend = {
+        isFakeWorker: true,
+        postMessage: function(message) {
+          return typeof hostend.onmessage === "function" ? hostend.onmessage({
+            data: message
+          }) : void 0;
+        },
+        addEventListener: function(event, handler) {
+          if (event === "message") {
+            return this.onmessage = handler;
+          }
+        }
+      };
+      return {
+        hostend: hostend,
+        guestend: guestend
+      };
+    };
+
     BundleBuilder.prototype.addPrefixFunction = function(fn) {
-      return this.prefixCodes.push("(" + (fn.toString()) + ")()");
+      return this.prefixCodes.push("(" + (fn.toString()) + ")();");
+    };
+
+    BundleBuilder.prototype.addEntryData = function(data, name) {
+      return this.suffixCodes.push(name + " = " + (JSON.stringify(data)) + ";\n");
     };
 
     BundleBuilder.prototype.addEntryFunction = function(fn) {
-      return this.suffixCodes.push("(" + (fn.toString()) + ")()");
+      return this.suffixCodes.push("(" + (fn.toString()) + ")();");
     };
 
     BundleBuilder.prototype.addEntryModule = function(name) {
-      return this.suffixCodes.push("(function(){" + this.contextName + ".require(\"" + name + "\")})()");
+      return this.suffixCodes.push("(function(){" + this.contextName + ".require(\"" + name + "\")})();");
     };
 
-    BundleBuilder.prototype.generateWorker = function() {
-      var js, url, worker;
+    BundleBuilder.prototype.generateWorker = function(option) {
+      var js, smUrl, url, worker;
+      if (option == null) {
+        option = {};
+      }
       js = this.generateBundle();
+      if (option.sourceMap) {
+        smUrl = this.sourceMapUrlFromJs(js);
+        js += ";\n//# sourceMappingURL=" + smUrl;
+      }
       url = URL.createObjectURL(new Blob([js]));
       worker = new Worker(url);
       return worker;
+    };
+
+    BundleBuilder.prototype.sourceMapUrlFromJs = function(js) {
+      var i, index, len, line, map, ref, result, smUrl;
+      map = {
+        "version": 3,
+        "file": this.contextName,
+        "sourceRoot": "",
+        "sources": [this.contextName],
+        "sourcesContent": [js],
+        "names": [],
+        "mappings": null
+      };
+      result = [];
+      ref = js.split("\n");
+      for (index = i = 0, len = ref.length; i < len; index = ++i) {
+        line = ref[index];
+        if (index === 0) {
+          result.push("AAAA");
+        } else {
+          result.push(";AACA");
+        }
+      }
+      map.mappings = result.join("");
+      smUrl = "data:application/json;base64," + (btoa(unescape(encodeURIComponent(JSON.stringify(map)))));
+      return smUrl;
+    };
+
+    BundleBuilder.prototype.generateFakeWorker = function(option) {
+      var code, fakeWorker, js, name, random, script, smUrl;
+      if (option == null) {
+        option = {};
+      }
+      js = this.generateBundle();
+      fakeWorker = this.createFakeWorker();
+      random = Math.random().toString().slice(5, 9);
+      code = "(function(){\n    var self = _" + random + this.contextName + "FakeWorkerEnd;\n    " + js + ";\n})();";
+      if (option.sourceMap) {
+        smUrl = this.sourceMapUrlFromJs(js);
+        code += "\n//# sourceMappingURL=" + smUrl;
+      }
+      name = "_" + random + this.contextName + "FakeWorkerEnd";
+      self[name] = fakeWorker.guestend;
+      script = document.createElement("script");
+      script.innerHTML = code;
+      script.setAttribute("worker", name);
+      setTimeout(function() {
+        return document.body.appendChild(script);
+      }, 0);
+      return fakeWorker.hostend;
     };
 
     BundleBuilder.prototype.generateBundle = function() {
@@ -865,7 +988,7 @@ URI = function(){
           return _this.moduleTemplate.replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content);
         };
       })(this));
-      core = this.coreTemplate.replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder));
+      core = this.coreTemplate.replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{entryData}}").replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder));
       return [prefix, core, suffix].join(";\n");
     };
 
@@ -897,37 +1020,75 @@ URI = function(){
     BundleBuilder.prototype.$$createBundleContext = function() {
       return {
         modules: {},
+        wrapCode: function(string) {
+          return "(function(){\n" + string + "\n})();";
+        },
         createDedicateWorker: function(pathes, option) {
-          var bundle, i, len, module, path, script;
+          var bundle, i, item, j, len, len1, path, script, scripts;
           bundle = new BundleBuilder({
             contextName: option.contextName || (this.globalName || "GlobalContext") + "Worker"
           });
           for (i = 0, len = pathes.length; i < len; i++) {
             path = pathes[i];
-            module = this.getRequiredModule(path);
-            script = {
-              path: path,
-              scriptContent: "(" + (module.exec.toString()) + ")()"
-            };
+            if (typeof path === "string") {
+              script = this.getRequiredModule(path);
+              scripts = [script];
+            } else if (path.test) {
+              scripts = this.getMatchingModules(path);
+            } else {
+              continue;
+            }
+            for (j = 0, len1 = scripts.length; j < len1; j++) {
+              item = scripts[j];
+              script = {
+                path: path,
+                scriptContent: "(" + (item.exec.toString()) + ")()"
+              };
+            }
             bundle.addScript(script);
+          }
+          if (option.entryData) {
+            bundle.addEntryData(option.entryData, option.entryDataName || "EntryData");
           }
           if (option.entryModule) {
             bundle.addEntryModule(option.entryModule);
           } else if (option.entryFunction) {
             bundle.addEntryFunction(option.entryFunction);
           }
-          return bundle.generateWorker();
+          if (option.fake) {
+            return bundle.generateFakeWorker(option);
+          } else {
+            return bundle.generateWorker(option);
+          }
         },
         require: function(path) {
           return this.requireModule(null, path);
         },
         getRequiredModuleContent: function(path, fromPath) {
           var module;
+          if (fromPath == null) {
+            fromPath = "";
+          }
           module = this.getRequiredModule(path, fromPath);
           return "(" + (module.exec.toString()) + ")()";
         },
+        getMatchingModules: function(path) {
+          var item, modulePath, ref, results;
+          results = [];
+          ref = this.modules;
+          for (modulePath in ref) {
+            item = ref[modulePath];
+            if (path.test(modulePath)) {
+              results.push(item);
+            }
+          }
+          return results;
+        },
         getRequiredModule: function(path, fromPath) {
           var module, realPath, url;
+          if (fromPath == null) {
+            fromPath = "";
+          }
           url = URI.URI;
           if (fromPath) {
             realPath = url.resolve(fromPath, path);
@@ -975,7 +1136,7 @@ URI = function(){
 
     BundleBuilder.prototype.moduleTemplate = "(function(){\nvar require = {{contextName}}.requireModule.bind({{contextName}},\"{{currentModulePath}}\");\nvar module = {};\nmodule.exports = {};\nvar exports = module.exports;\nfunction exec(){\n    {{currentModuleContent}}\n}\n{{contextName}}.setModule(\"{{currentModulePath}}\",module,exec);\n})()";
 
-    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nURI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i in aUriSegments) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}();\n{{BundleBuilderCode}}\n{{contextName}} = {{createContextProcedure}};\n{{contextName}}.contextName = \"{{contextName}}\";\n{{modules}};\n})()";
+    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nvar URI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i in aUriSegments) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}();\n{{BundleBuilderCode}}\n{{contextName}} = {{createContextProcedure}};\n{{contextName}}.contextName = \"{{contextName}}\";\n{{modules}};\n})()";
 
     return BundleBuilder;
 

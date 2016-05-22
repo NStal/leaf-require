@@ -11,7 +11,7 @@
  * @param {string} baseuri the base URI (must be absolute) to resolve against
  */
 
-URI = function(){
+var URI = function(){
     function resolveUri(sUri, sBaseUri) {
     if (sUri == '' || sUri.charAt(0) == '#') return sUri;
     var hUri = getUriComponents(sUri);
@@ -79,12 +79,24 @@ class Context
     createDedicateWorker:(pathes,option = {})->
         bundle = new BundleBuilder({contextName:option.contextName or @globalName+"Worker"})
         for path in pathes
-            bundle.addScript @getRequiredScript(path)
+            if typeof path is "string"
+                scripts = [@getRequiredScript(path)]
+            else if path.test
+                scripts = @getMatchingScripts path
+            else
+                continue
+            for script in scripts
+                bundle.addScript script
+        if option.entryData
+            bundle.addEntryData option.entryData,option.entryDataName or "EntryData"
         if option.entryModule
             bundle.addEntryModule option.entryModule
         else if option.entryFunction
             bundle.addEntryFunction option.entryFunction
-        return bundle.generateWorker()
+        if option.fake
+            return bundle.generateFakeWorker(option)
+        else
+            return bundle.generateWorker(option)
     constructor:(option = {})->
         @id = Context.id++
         Context.instances[@id] = this
@@ -119,6 +131,13 @@ class Context
     _debug:(args...)->
         if @debug
             console.debug args...
+
+    getMatchingScripts:(path)->
+        result = []
+        for script in @scripts
+            if path.test script.scriptPath
+                result.push script
+        return result
     getScript:(path)->
         for script in @scripts
             if script.scriptPath is path
@@ -432,7 +451,6 @@ class Context.BestPractice
         @context = new LeafRequire({@localStoragePrefix,@enableSourceMap})
         if @debug
             @context.loadConfig @config,()=>
-                console.error "load config QAQ"
                 @context.load ()=>
                     if callback
                         callback()
@@ -543,17 +561,82 @@ class BundleBuilder
                 content:file.scriptContent
             }
         )...
+    createFakeWorker:()->
+        hostend = {
+            postMessage:(message)->
+                guestend.onmessage? {data:message}
+            addEventListener:(event,handler)->
+                if event is "message"
+                    @onmessage = handler
+        }
+        guestend = {
+            isFakeWorker:true
+            postMessage:(message)->
+                hostend.onmessage? {data:message}
+            addEventListener:(event,handler)->
+                if event is "message"
+                    @onmessage = handler
+        }
+        return {
+            hostend
+            guestend
+        }
     addPrefixFunction:(fn)->
-        @prefixCodes.push "(#{fn.toString()})()"
+        @prefixCodes.push "(#{fn.toString()})();"
+    addEntryData:(data,name)->
+        @suffixCodes.push "#{name} = #{JSON.stringify data};\n"
     addEntryFunction:(fn)->
-        @suffixCodes.push "(#{fn.toString()})()"
+        @suffixCodes.push "(#{fn.toString()})();"
     addEntryModule:(name)->
-        @suffixCodes.push "(function(){#{@contextName}.require(\"#{name}\")})()"
-    generateWorker:()->
+        @suffixCodes.push "(function(){#{@contextName}.require(\"#{name}\")})();"
+    generateWorker:(option = {})->
         js = @generateBundle()
+        if option.sourceMap
+            smUrl = @sourceMapUrlFromJs(js)
+            js += ";\n//# sourceMappingURL=#{smUrl}"
         url = URL.createObjectURL new Blob([js])
         worker = new Worker(url)
         return worker
+    sourceMapUrlFromJs:(js)->
+        map = {
+            "version" : 3,
+            "file": @contextName,
+            "sourceRoot": "",
+            "sources": [@contextName],
+            "sourcesContent":[js],
+            "names": [],
+            "mappings": null
+        }
+        result = []
+        for line,index in js.split("\n")
+            if index is 0
+                result.push "AAAA"
+            else
+                result.push ";AACA"
+        map.mappings = result.join("")
+        smUrl ="data:application/json;base64,#{btoa unescape encodeURIComponent JSON.stringify(map)}"
+        return smUrl
+    generateFakeWorker:(option = {})->
+        js = @generateBundle()
+        fakeWorker = @createFakeWorker()
+        random = Math.random().toString().slice(5,9)
+        code = """(function(){
+            var self = _#{random}#{@contextName}FakeWorkerEnd;
+            #{js};
+        })();
+        """
+        if option.sourceMap
+            smUrl = @sourceMapUrlFromJs(js)
+            code += "\n//# sourceMappingURL=#{smUrl}"
+        name = "_#{random}#{@contextName}FakeWorkerEnd"
+        self[name] = fakeWorker.guestend
+        script = document.createElement("script")
+        script.innerHTML = code
+        script.setAttribute("worker",name)
+        setTimeout ()->
+            document.body.appendChild script
+        ,0
+        return fakeWorker.hostend
     generateBundle:()->
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")
@@ -566,6 +649,7 @@ class BundleBuilder
             .replace(/{{contextName}}/g,@contextName)
             .replace("{{modules}}",scripts.join(";\n"))
             .replace("{{createContextProcedure}}",@getPureFunctionProcedure("createBundleContext"))
+            .replace("{{entryData}}")
             .replace("{{BundleBuilderCode}}",@getPureClassCode(BundleBuilder))
         return [prefix,core,suffix].join(";\n")
     getPureFunctionProcedure:(name)->
@@ -590,26 +674,46 @@ class BundleBuilder
     $$createBundleContext:()->
         return {
             modules:{}
+            wrapCode:(string)->
+                return "(function(){\n#{string}\n})();"
             createDedicateWorker:(pathes,option)->
                 bundle = new BundleBuilder({contextName:option.contextName or (@globalName or "GlobalContext")+"Worker"})
                 for path in pathes
-                    module = @getRequiredModule(path)
-                    script = {
-                        path
-                        scriptContent:"(#{module.exec.toString()})()"
-                    }
+                    if typeof path is "string"
+                        script = @getRequiredModule(path)
+                        scripts = [script]
+                    else if path.test
+                        scripts = @getMatchingModules path
+                    else
+                        continue
+                    for item in scripts
+                        script = {
+                            path
+                            scriptContent:"(#{item.exec.toString()})()"
+                        }
                     bundle.addScript script
+                if option.entryData
+                    bundle.addEntryData option.entryData,option.entryDataName or "EntryData"
                 if option.entryModule
                     bundle.addEntryModule option.entryModule
                 else if option.entryFunction
                     bundle.addEntryFunction option.entryFunction
-                return bundle.generateWorker()
+                if option.fake
+                    return bundle.generateFakeWorker(option)
+                else
+                    return bundle.generateWorker(option)
             require:(path)->
                 return this.requireModule(null,path)
-            getRequiredModuleContent:(path,fromPath)->
+            getRequiredModuleContent:(path,fromPath = "")->
                 module = @getRequiredModule(path,fromPath)
                 return "(#{module.exec.toString()})()"
-            getRequiredModule:(path,fromPath)->
+            getMatchingModules:(path)->
+                results = []
+                for modulePath,item of @modules
+                    if path.test modulePath
+                        results.push item
+                return results
+            getRequiredModule:(path,fromPath = "")->
                 url = URI.URI
                 if fromPath
                     realPath = url.resolve(fromPath,path)
@@ -667,7 +771,7 @@ class BundleBuilder
      * @param {string} baseuri the base URI (must be absolute) to resolve against
      */
 
-    URI = function(){
+    var URI = function(){
         function resolveUri(sUri, sBaseUri) {
 	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;
 	    var hUri = getUriComponents(sUri);

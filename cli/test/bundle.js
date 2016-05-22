@@ -69,13 +69,13 @@ BundleBuilder = function BundleBuilder(option) {
 BundleBuilder.prototype["addScript"] = function () {
       var item, ref, scripts, url;
       scripts = (function() {
-        var i, len, results;
-        results = [];
+        var i, len, results1;
+        results1 = [];
         for (i = 0, len = arguments.length; i < len; i++) {
           item = arguments[i];
-          results.push(item);
+          results1.push(item);
         }
-        return results;
+        return results1;
       }).apply(this, arguments);
       url = URI.URI;
       return (ref = this.scripts).push.apply(ref, scripts.map((function(_this) {
@@ -142,17 +142,27 @@ BundleBuilder.prototype["$createBundleContext"] = function () {
       return {
         modules: {},
         createDedicateWorker: function(pathes, option) {
-          var bundle, i, len, module, path, script;
+          var bundle, i, item, j, len, len1, path, script, scripts;
           bundle = new BundleBuilder({
             contextName: option.contextName || (this.globalName || "GlobalContext") + "Worker"
           });
           for (i = 0, len = pathes.length; i < len; i++) {
             path = pathes[i];
-            module = this.getRequiredModule(path);
-            script = {
-              path: path,
-              scriptContent: "(" + (module.exec.toString()) + ")()"
-            };
+            if (typeof path === "string") {
+              script = this.getRequiredModule(path);
+              scripts = [script];
+            } else if (path.test) {
+              scripts = this.getMatchingModules(path);
+            } else {
+              continue;
+            }
+            for (j = 0, len1 = scripts.length; j < len1; j++) {
+              item = scripts[j];
+              script = {
+                path: path,
+                scriptContent: "(" + (item.exec.toString()) + ")()"
+              };
+            }
             bundle.addScript(script);
           }
           if (option.entryModule) {
@@ -169,6 +179,18 @@ BundleBuilder.prototype["$createBundleContext"] = function () {
           var module;
           module = this.getRequiredModule(path, fromPath);
           return "(" + (module.exec.toString()) + ")()";
+        },
+        getMatchingModules: function(path) {
+          var item, modulePath, ref, results;
+          results = [];
+          ref = this.modules;
+          for (modulePath in ref) {
+            item = ref[modulePath];
+            if (path.test(modulePath)) {
+              results.push(item);
+            }
+          }
+          return results;
         },
         getRequiredModule: function(path, fromPath) {
           var module, realPath, url;
@@ -222,17 +244,27 @@ GlobalContext = (function () {
       return {
         modules: {},
         createDedicateWorker: function(pathes, option) {
-          var bundle, i, len, module, path, script;
+          var bundle, i, item, j, len, len1, path, script, scripts;
           bundle = new BundleBuilder({
             contextName: option.contextName || (this.globalName || "GlobalContext") + "Worker"
           });
           for (i = 0, len = pathes.length; i < len; i++) {
             path = pathes[i];
-            module = this.getRequiredModule(path);
-            script = {
-              path: path,
-              scriptContent: "(" + (module.exec.toString()) + ")()"
-            };
+            if (typeof path === "string") {
+              script = this.getRequiredModule(path);
+              scripts = [script];
+            } else if (path.test) {
+              scripts = this.getMatchingModules(path);
+            } else {
+              continue;
+            }
+            for (j = 0, len1 = scripts.length; j < len1; j++) {
+              item = scripts[j];
+              script = {
+                path: path,
+                scriptContent: "(" + (item.exec.toString()) + ")()"
+              };
+            }
             bundle.addScript(script);
           }
           if (option.entryModule) {
@@ -249,6 +281,18 @@ GlobalContext = (function () {
           var module;
           module = this.getRequiredModule(path, fromPath);
           return "(" + (module.exec.toString()) + ")()";
+        },
+        getMatchingModules: function(path) {
+          var item, modulePath, ref, results;
+          results = [];
+          ref = this.modules;
+          for (modulePath in ref) {
+            item = ref[modulePath];
+            if (path.test(modulePath)) {
+              results.push(item);
+            }
+          }
+          return results;
         },
         getRequiredModule: function(path, fromPath) {
           var module, realPath, url;
