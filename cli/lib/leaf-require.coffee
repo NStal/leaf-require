@@ -556,8 +556,11 @@ class BundleBuilder
         scripts = (item for item in arguments)
         url = URI.URI
         @scripts.push (scripts.map (file)=>
+            path = url.normalize(file.path)
+            if path[0] is "/"
+                path = path.slice(1)
             return {
-                path:url.normalize(file.path)
+                path:path
                 content:file.scriptContent
             }
         )...
@@ -589,31 +592,45 @@ class BundleBuilder
         @suffixCodes.push "(#{fn.toString()})();"
     addEntryModule:(name)->
         @suffixCodes.push "(function(){#{@contextName}.require(\"#{name}\")})();"
-    generateWorker:()->
+    generateWorker:(option = {})->
         js = @generateBundle()
+        if option.sourceMap
+            smUrl = @sourceMapUrlFromJs(js)
+            js += ";\n//# sourceMappingURL=#{smUrl}"
         url = URL.createObjectURL new Blob([js])
         worker = new Worker(url)
         return worker
-    generateFakeWorker:()->
-        js = @generateBundle()
-        fakeWorker = @createFakeWorker()
-        random = Math.random().toString().slice(5,9)
+    sourceMapUrlFromJs:(js)->
         map = {
             "version" : 3,
             "file": @contextName,
             "sourceRoot": "",
             "sources": [@contextName],
-            "sourcesContent": [],
+            "sourcesContent":[js],
             "names": [],
             "mappings": null
         }
+        result = []
+        for line,index in js.split("\n")
+            if index is 0
+                result.push "AAAA"
+            else
+                result.push ";AACA"
+        map.mappings = result.join("")
         smUrl ="data:application/json;base64,#{btoa unescape encodeURIComponent JSON.stringify(map)}"
+        return smUrl
+    generateFakeWorker:(option = {})->
+        js = @generateBundle()
+        fakeWorker = @createFakeWorker()
+        random = Math.random().toString().slice(5,9)
         code = """(function(){
             var self = _#{random}#{@contextName}FakeWorkerEnd;
             #{js};
         })();
-        # sourceMappingUrl=#{smUrl}
         """
+        if option.sourceMap
+            smUrl = @sourceMapUrlFromJs(js)
+            code += "\n//# sourceMappingURL=#{smUrl}"
         name = "_#{random}#{@contextName}FakeWorkerEnd"
         self[name] = fakeWorker.guestend
         script = document.createElement("script")
@@ -667,17 +684,17 @@ class BundleBuilder
                 for path in pathes
                     if typeof path is "string"
                         script = @getRequiredModule(path)
-                        scripts = [script]
+                        scripts = [{module:script,path:path}]
                     else if path.test
                         scripts = @getMatchingModules path
                     else
                         continue
                     for item in scripts
                         script = {
-                            path
-                            scriptContent:"(#{item.exec.toString()})()"
+                            path:item.path
+                            scriptContent:"(#{item.module.exec.toString()})()"
                         }
-                    bundle.addScript script
+                        bundle.addScript script
                 if option.entryData
                     bundle.addEntryData option.entryData,option.entryDataName or "EntryData"
                 if option.entryModule
@@ -697,7 +714,7 @@ class BundleBuilder
                 results = []
                 for modulePath,item of @modules
                     if path.test modulePath
-                        results.push item
+                        results.push {path:modulePath,module:item}
                 return results
             getRequiredModule:(path,fromPath = "")->
                 url = URI.URI
@@ -709,7 +726,7 @@ class BundleBuilder
                     realPath = realPath.slice(1)
                 if realPath.slice(-3) isnt ".js"
                     realPath += ".js"
-                if !this.modules[realPath]
+                if not this.modules[realPath]
                     throw new Error("module " + path + " required at " + (fromPath || "/") + " is not exists")
 
                 module = this.modules[realPath];

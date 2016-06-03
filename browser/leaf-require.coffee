@@ -198,7 +198,6 @@ class Context
         @hasConfiged = true
         js = config.js or {}
         files = js.files or []
-#        console.debug "CONFIG",config
         @init
             name:config.name
             root:js.root
@@ -359,7 +358,6 @@ class Script
         @_debug @hash,file and file.hash
         # has file, has content and
         if file and file.content and not (@version and @version isnt file.version)
-            console.debug "return from",@context.name,@loadPath
             @_debug "cache found and do the restore"
             @_debug "#{@loadPath} from cache"
             @scriptContent = file.content
@@ -556,8 +554,11 @@ class BundleBuilder
         scripts = (item for item in arguments)
         url = URI.URI
         @scripts.push (scripts.map (file)=>
+            path = url.normalize(file.path)
+            if path[0] is "/"
+                path = path.slice(1)
             return {
-                path:url.normalize(file.path)
+                path:path
                 content:file.scriptContent
             }
         )...
@@ -681,17 +682,17 @@ class BundleBuilder
                 for path in pathes
                     if typeof path is "string"
                         script = @getRequiredModule(path)
-                        scripts = [script]
+                        scripts = [{module:script,path:path}]
                     else if path.test
                         scripts = @getMatchingModules path
                     else
                         continue
                     for item in scripts
                         script = {
-                            path
-                            scriptContent:"(#{item.exec.toString()})()"
+                            path:item.path
+                            scriptContent:"(#{item.module.exec.toString()})()"
                         }
-                    bundle.addScript script
+                        bundle.addScript script
                 if option.entryData
                     bundle.addEntryData option.entryData,option.entryDataName or "EntryData"
                 if option.entryModule
@@ -711,7 +712,7 @@ class BundleBuilder
                 results = []
                 for modulePath,item of @modules
                     if path.test modulePath
-                        results.push item
+                        results.push {path:modulePath,module:item}
                 return results
             getRequiredModule:(path,fromPath = "")->
                 url = URI.URI
@@ -723,7 +724,7 @@ class BundleBuilder
                     realPath = realPath.slice(1)
                 if realPath.slice(-3) isnt ".js"
                     realPath += ".js"
-                if !this.modules[realPath]
+                if not this.modules[realPath]
                     throw new Error("module " + path + " required at " + (fromPath || "/") + " is not exists")
 
                 module = this.modules[realPath];

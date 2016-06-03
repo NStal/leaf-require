@@ -563,7 +563,6 @@ var URI = function(){
       this._debug("try restore " + this.loadPath + " from cache", file);
       this._debug(this.hash, file && file.hash);
       if (file && file.content && !(this.version && this.version !== file.version)) {
-        console.debug("return from", this.context.name, this.loadPath);
         this._debug("cache found and do the restore");
         this._debug(this.loadPath + " from cache");
         this.scriptContent = file.content;
@@ -857,8 +856,13 @@ var URI = function(){
       url = URI.URI;
       return (ref = this.scripts).push.apply(ref, scripts.map((function(_this) {
         return function(file) {
+          var path;
+          path = url.normalize(file.path);
+          if (path[0] === "/") {
+            path = path.slice(1);
+          }
           return {
-            path: url.normalize(file.path),
+            path: path,
             content: file.scriptContent
           };
         };
@@ -1032,7 +1036,12 @@ var URI = function(){
             path = pathes[i];
             if (typeof path === "string") {
               script = this.getRequiredModule(path);
-              scripts = [script];
+              scripts = [
+                {
+                  module: script,
+                  path: path
+                }
+              ];
             } else if (path.test) {
               scripts = this.getMatchingModules(path);
             } else {
@@ -1041,11 +1050,11 @@ var URI = function(){
             for (j = 0, len1 = scripts.length; j < len1; j++) {
               item = scripts[j];
               script = {
-                path: path,
-                scriptContent: "(" + (item.exec.toString()) + ")()"
+                path: item.path,
+                scriptContent: "(" + (item.module.exec.toString()) + ")()"
               };
+              bundle.addScript(script);
             }
-            bundle.addScript(script);
           }
           if (option.entryData) {
             bundle.addEntryData(option.entryData, option.entryDataName || "EntryData");
@@ -1079,7 +1088,10 @@ var URI = function(){
           for (modulePath in ref) {
             item = ref[modulePath];
             if (path.test(modulePath)) {
-              results.push(item);
+              results.push({
+                path: modulePath,
+                module: item
+              });
             }
           }
           return results;
