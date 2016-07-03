@@ -26,7 +26,7 @@ var URI = function(){
         aBaseUriSegments = hBaseUri.path.split('/');
         aBaseUriSegments.pop();
         var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
-        for (var i in aUriSegments) {
+        for (var i =0;i < aUriSegments.length;i++) {
             if (aUriSegments[i] == '..')
             if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
             else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
@@ -152,7 +152,7 @@ var URI = function(){
 
     Context.prototype.init = function(option) {
       this.root = option.root || this.root || "./";
-      if (this.root[this.root.length - 1] !== "/") {
+      if (this.root.charAt(this.root.length - 1) !== "/") {
         this.root += "/";
       }
       this.version = option.version || this.version || "0.0.0";
@@ -858,7 +858,7 @@ var URI = function(){
         return function(file) {
           var path;
           path = url.normalize(file.path);
-          if (path[0] === "/") {
+          if (path.charAt(0) === "/") {
             path = path.slice(1);
           }
           return {
@@ -1107,7 +1107,7 @@ var URI = function(){
           } else {
             realPath = url.normalize(path);
           }
-          if (realPath[0] === "/") {
+          if (realPath.charAt(0) === "/") {
             realPath = realPath.slice(1);
           }
           if (realPath.slice(-3) !== ".js") {
@@ -1148,7 +1148,7 @@ var URI = function(){
 
     BundleBuilder.prototype.moduleTemplate = "(function(){\nvar require = {{contextName}}.requireModule.bind({{contextName}},\"{{currentModulePath}}\");\nvar module = {};\nmodule.exports = {};\nvar exports = module.exports;\nfunction exec(){\n    {{currentModuleContent}}\n}\n{{contextName}}.setModule(\"{{currentModulePath}}\",module,exec);\n})()";
 
-    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nvar URI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i in aUriSegments) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}();\n{{BundleBuilderCode}}\n{{contextName}} = {{createContextProcedure}};\n{{contextName}}.contextName = \"{{contextName}}\";\n{{modules}};\n})()";
+    BundleBuilder.prototype.coreTemplate = "(function(){\n/**\n * Implementation of base URI resolving algorithm in rfc2396.\n * - Algorithm from section 5.2\n *   (ignoring difference between undefined and '')\n * - Regular expression from appendix B\n * - Tests from appendix C\n *\n * @param {string} uri the relative URI to resolve\n * @param {string} baseuri the base URI (must be absolute) to resolve against\n */\n\nvar URI = function(){\n    function resolveUri(sUri, sBaseUri) {\n	    if (sUri == '' || sUri.charAt(0) == '#') return sUri;\n	    var hUri = getUriComponents(sUri);\n	    if (hUri.scheme) return sUri;\n	    var hBaseUri = getUriComponents(sBaseUri);\n	    hUri.scheme = hBaseUri.scheme;\n	    if (!hUri.authority) {\n	        hUri.authority = hBaseUri.authority;\n	        if (hUri.path.charAt(0) != '/') {\n		    aUriSegments = hUri.path.split('/');\n		    aBaseUriSegments = hBaseUri.path.split('/');\n		    aBaseUriSegments.pop();\n		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;\n		    for (var i = 0;i < aUriSegments.length; i++) {\n		        if (aUriSegments[i] == '..')\n			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();\n		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }\n		        else if (aUriSegments[i] != '.') aBaseUriSegments.push(aUriSegments[i]);\n		    }\n		    if (aUriSegments[i] == '..' || aUriSegments[i] == '.') aBaseUriSegments.push('');\n		    hUri.path = aBaseUriSegments.join('/');\n	        }\n	    }\n	    var result = '';\n	    if (hUri.scheme   ) result += hUri.scheme + ':';\n	    if (hUri.authority) result += '//' + hUri.authority;\n	    if (hUri.path     ) result += hUri.path;\n	    if (hUri.query    ) result += '?' + hUri.query;\n	    if (hUri.fragment ) result += '#' + hUri.fragment;\n	    return result;\n    }\n    uriregexp = new RegExp('^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?');\n    function getUriComponents(uri) {\n	    var c = uri.match(uriregexp);\n	    return { scheme: c[2], authority: c[4], path: c[5], query: c[7], fragment: c[9] };\n    }\n    var URI = {}\n    URI.resolve = function(base,target){\n        return resolveUri(target,base);\n    }\n    URI.normalize = function(url){\n        return URI.resolve(\"\",url);\n    }\n    return {URI:URI}\n}();\n{{BundleBuilderCode}}\n{{contextName}} = {{createContextProcedure}};\n{{contextName}}.contextName = \"{{contextName}}\";\n{{modules}};\n})()";
 
     return BundleBuilder;
 

@@ -1,6 +1,6 @@
 {
   "name": "leaf-require-cli",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "leaf-require builder ",
   "main": "index.js",
   "scripts": {

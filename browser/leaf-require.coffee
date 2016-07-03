@@ -25,7 +25,7 @@ var URI = function(){
         aBaseUriSegments = hBaseUri.path.split('/');
         aBaseUriSegments.pop();
         var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
-        for (var i in aUriSegments) {
+        for (var i =0;i < aUriSegments.length;i++) {
             if (aUriSegments[i] == '..')
             if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
             else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
@@ -118,7 +118,7 @@ class Context
             debug:option.debug
     init:(option)->
         @root = option.root or @root or "./"
-        if @root[@root.length - 1] isnt "/"
+        if @root.charAt(@root.length - 1) isnt "/"
             @root += "/"
         @version = option.version or @version or "0.0.0"
         @name = option.name or @name or "leaf-require"
@@ -555,7 +555,7 @@ class BundleBuilder
         url = URI.URI
         @scripts.push (scripts.map (file)=>
             path = url.normalize(file.path)
-            if path[0] is "/"
+            if path.charAt(0) is "/"
                 path = path.slice(1)
             return {
                 path:path
@@ -720,7 +720,7 @@ class BundleBuilder
                     realPath = url.resolve(fromPath,path)
                 else
                     realPath = url.normalize(path)
-                if realPath[0] is "/"
+                if realPath.charAt(0) is "/"
                     realPath = realPath.slice(1)
                 if realPath.slice(-3) isnt ".js"
                     realPath += ".js"
@@ -786,7 +786,7 @@ class BundleBuilder
 		    aBaseUriSegments = hBaseUri.path.split('/');
 		    aBaseUriSegments.pop();
 		    var iBaseUriStart = aBaseUriSegments[0] == '' ? 1 : 0;
-		    for (var i in aUriSegments) {
+		    for (var i = 0;i < aUriSegments.length; i++) {
 		        if (aUriSegments[i] == '..')
 			    if (aBaseUriSegments.length > iBaseUriStart) aBaseUriSegments.pop();
 		        else { aBaseUriSegments.push(aUriSegments[i]); iBaseUriStart++; }
