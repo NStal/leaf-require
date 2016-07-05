@@ -1,3 +1,5 @@
 #!/usr/bin/env node
+
 require("coffee-script/register")
-require("leaf-require-cli/lib/cli")
+// require("leaf-require-cli/lib/cli")
+require("../lib/cli")
