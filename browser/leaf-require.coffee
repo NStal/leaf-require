@@ -656,16 +656,28 @@ class BundleBuilder
             document.body.appendChild script
         ,0
         return fakeWorker.hostend
+    replaceSafe:(str)->
+        class ReplaceSafeString
+            constructor:(@str)->
+            replace:(q,rep)->
+                if typeof rep is "string"
+                    str = @str.replace q,()->rep
+                else
+                    str = @str.replace q,rep
+                return new ReplaceSafeString(str)
+            toString:()->`
+                return @str
+            return new ReplaceSafeString(str)
     generateBundle:()->
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")
         scripts = @scripts.map (script)=>
-            return replaceSafe(@moduleTemplate)
+            return @replaceSafe(@moduleTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace(/{{currentModulePath}}/g,script.path)
             .replace("{{currentModuleContent}}",script.content)
             .toString()
-        core = replaceSafe(@coreTemplate)
+        core = @replaceSafe(@coreTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace("{{modules}}",scripts.join(";\n"))
             .replace("{{createContextProcedure}}",@getPureFunctionProcedure("createBundleContext"))
@@ -686,7 +698,7 @@ class BundleBuilder
                 value = value.toString()
             else
                 value = JSON.stringify value
-            codes.push replaceSafe(template).replace("{{prop}}",prop).replace("{{value}}",value).toString()
+            codes.push @replaceSafe(template).replace("{{prop}}",prop).replace("{{value}}",value).toString()
 
         return """
         #{className} = #{constructor.toString()}
