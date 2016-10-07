@@ -57,7 +57,18 @@ var URI = function(){
     }
     return {URI:URI}
 }()`
-
+replaceSafe = (str)->
+    return new ReplaceSafeString(str)
+class ReplaceSafeString
+    constructor:(@str)->
+    replace:(q,rep)->
+        if typeof rep is "string"
+            str = @str.replace q,()->rep
+        else
+            str = @str.replace q,rep
+        return new ReplaceSafeString(str)
+    toString:()->
+        return @str
 class Context
     @id = 0
     @instances = []
@@ -302,7 +313,7 @@ class Script
             @path = file.path
             @hash = file.hash or null
         @scriptPath = url.normalize(@path)
-        @loadPath = url.resolve(@context.root,file.loadPath or @path) + (@context.random and "?random=#{@context.version or Math.random().toString().slice(3,10)}" or "")
+        @loadPath = url.resolve(@context.root,file.loadPath or @path)
         @_debug = @context._debug.bind(this)
         if file.scriptContent
             @scriptContent = file.scriptContent
@@ -365,7 +376,8 @@ class Script
                 @importToDocument()
                 ),0
             return
-        Context._httpGet @loadPath,(err,content)=>
+        loadPath = @loadPath + (@context.withVersion and "?version=#{@context.version}" or "")
+        Context._httpGet loadPath,(err,content)=>
             if err
                 callback new Error "fail to get #{@loadPath}"
                 return
@@ -441,12 +453,17 @@ class Context.BestPractice
         @showDebugInfo = option.showDebugInfo or option.debug or false
         @enableSourceMap = option.enableSourceMap or false
         @entry = option.entry or "main"
+        @withVersion = option.withVersion
+        @version = option.version
+        @option = option
     _debug:(args...)->
         if @debug or @showDebugInfo
             console.debug ?= console.log.bind(console)
             console.debug args...
     run:(callback)->
         @context = new LeafRequire({@localStoragePrefix,@enableSourceMap})
+        @context.withVersion = @withVersion
+        @context.version = @version
         if @debug
             @context.loadConfig @config,()=>
                 @context.load ()=>
@@ -502,6 +519,7 @@ class Context.BestPractice
             return 0
     checkVerionUpdate:()->
         checker = new Context({localStoragePrefix:@localStoragePrefix,dry:true})
+
         @_debug "check config"
         checker.loadConfig @config,(err)=>
             if err
@@ -642,16 +660,18 @@ class BundleBuilder
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")
         scripts = @scripts.map (script)=>
-            return @moduleTemplate
+            return replaceSafe(@moduleTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace(/{{currentModulePath}}/g,script.path)
             .replace("{{currentModuleContent}}",script.content)
-        core = @coreTemplate
+            .toString()
+        core = replaceSafe(@coreTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace("{{modules}}",scripts.join(";\n"))
             .replace("{{createContextProcedure}}",@getPureFunctionProcedure("createBundleContext"))
             .replace("{{entryData}}")
             .replace("{{BundleBuilderCode}}",@getPureClassCode(BundleBuilder))
+            .toString()
         return [prefix,core,suffix].join(";\n")
     getPureFunctionProcedure:(name)->
         return "(#{@["$$"+name].toString()})()"
@@ -666,7 +686,7 @@ class BundleBuilder
                 value = value.toString()
             else
                 value = JSON.stringify value
-            codes.push template.replace("{{prop}}",prop).replace("{{value}}",value)
+            codes.push replaceSafe(template).replace("{{prop}}",prop).replace("{{value}}",value).toString()
 
         return """
         #{className} = #{constructor.toString()}

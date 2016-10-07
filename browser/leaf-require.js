@@ -58,8 +58,37 @@ var URI = function(){
     }
     return {URI:URI}
 }();
-  var BundleBuilder, Context, Script,
+  var BundleBuilder, Context, ReplaceSafeString, Script, replaceSafe,
     slice = [].slice;
+
+  replaceSafe = function(str) {
+    return new ReplaceSafeString(str);
+  };
+
+  ReplaceSafeString = (function() {
+    function ReplaceSafeString(str1) {
+      this.str = str1;
+    }
+
+    ReplaceSafeString.prototype.replace = function(q, rep) {
+      var str;
+      if (typeof rep === "string") {
+        str = this.str.replace(q, function() {
+          return rep;
+        });
+      } else {
+        str = this.str.replace(q, rep);
+      }
+      return new ReplaceSafeString(str);
+    };
+
+    ReplaceSafeString.prototype.toString = function() {
+      return this.str;
+    };
+
+    return ReplaceSafeString;
+
+  })();
 
   Context = (function() {
     Context.id = 0;
@@ -995,10 +1024,10 @@ var URI = function(){
       suffix = this.suffixCodes.join(";\n");
       scripts = this.scripts.map((function(_this) {
         return function(script) {
-          return _this.moduleTemplate.replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content);
+          return replaceSafe(_this.moduleTemplate).replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content).toString();
         };
       })(this));
-      core = this.coreTemplate.replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{entryData}}").replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder));
+      core = replaceSafe(this.coreTemplate).replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{entryData}}").replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder)).toString();
       return [prefix, core, suffix].join(";\n");
     };
 
@@ -1022,7 +1051,7 @@ var URI = function(){
         } else {
           value = JSON.stringify(value);
         }
-        codes.push(template.replace("{{prop}}", prop).replace("{{value}}", value));
+        codes.push(replaceSafe(template).replace("{{prop}}", prop).replace("{{value}}", value).toString());
       }
       return className + " = " + (constructor.toString()) + "\n" + (codes.join("\n"));
     };

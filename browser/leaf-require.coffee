@@ -57,7 +57,18 @@ var URI = function(){
     }
     return {URI:URI}
 }()`
-
+replaceSafe = (str)->
+    return new ReplaceSafeString(str)
+class ReplaceSafeString
+    constructor:(@str)->
+    replace:(q,rep)->
+        if typeof rep is "string"
+            str = @str.replace q,()->rep
+        else
+            str = @str.replace q,rep
+        return new ReplaceSafeString(str)
+    toString:()->
+        return @str
 class Context
     @id = 0
     @instances = []
@@ -649,16 +660,18 @@ class BundleBuilder
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")
         scripts = @scripts.map (script)=>
-            return @moduleTemplate
+            return replaceSafe(@moduleTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace(/{{currentModulePath}}/g,script.path)
             .replace("{{currentModuleContent}}",script.content)
-        core = @coreTemplate
+            .toString()
+        core = replaceSafe(@coreTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace("{{modules}}",scripts.join(";\n"))
             .replace("{{createContextProcedure}}",@getPureFunctionProcedure("createBundleContext"))
             .replace("{{entryData}}")
             .replace("{{BundleBuilderCode}}",@getPureClassCode(BundleBuilder))
+            .toString()
         return [prefix,core,suffix].join(";\n")
     getPureFunctionProcedure:(name)->
         return "(#{@["$$"+name].toString()})()"
@@ -673,7 +686,7 @@ class BundleBuilder
                 value = value.toString()
             else
                 value = JSON.stringify value
-            codes.push template.replace("{{prop}}",prop).replace("{{value}}",value)
+            codes.push replaceSafe(template).replace("{{prop}}",prop).replace("{{value}}",value).toString()
 
         return """
         #{className} = #{constructor.toString()}
