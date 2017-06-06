@@ -665,18 +665,18 @@ class BundleBuilder
                 else
                     str = @str.replace q,rep
                 return new ReplaceSafeString(str)
-            toString:()->`
+            toString:()->
                 return @str
-            return new ReplaceSafeString(str)
+        return new ReplaceSafeString(str)
     generateBundle:()->
         prefix = @prefixCodes.join(";\n")
         suffix = @suffixCodes.join(";\n")
         scripts = @scripts.map (script)=>
             return @replaceSafe(@moduleTemplate)
-            .replace(/{{contextName}}/g,@contextName)
-            .replace(/{{currentModulePath}}/g,script.path)
-            .replace("{{currentModuleContent}}",script.content)
-            .toString()
+                .replace(/{{contextName}}/g,@contextName)
+                .replace(/{{currentModulePath}}/g,script.path)
+                .replace("{{currentModuleContent}}",script.content)
+                .toString()
         core = @replaceSafe(@coreTemplate)
             .replace(/{{contextName}}/g,@contextName)
             .replace("{{modules}}",scripts.join(";\n"))

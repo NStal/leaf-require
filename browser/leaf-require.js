@@ -1018,16 +1018,43 @@ var URI = function(){
       return fakeWorker.hostend;
     };
 
+    BundleBuilder.prototype.replaceSafe = function(str) {
+      ReplaceSafeString = (function() {
+        function ReplaceSafeString(str1) {
+          this.str = str1;
+        }
+
+        ReplaceSafeString.prototype.replace = function(q, rep) {
+          if (typeof rep === "string") {
+            str = this.str.replace(q, function() {
+              return rep;
+            });
+          } else {
+            str = this.str.replace(q, rep);
+          }
+          return new ReplaceSafeString(str);
+        };
+
+        ReplaceSafeString.prototype.toString = function() {
+          return this.str;
+        };
+
+        return ReplaceSafeString;
+
+      })();
+      return new ReplaceSafeString(str);
+    };
+
     BundleBuilder.prototype.generateBundle = function() {
       var core, prefix, scripts, suffix;
       prefix = this.prefixCodes.join(";\n");
       suffix = this.suffixCodes.join(";\n");
       scripts = this.scripts.map((function(_this) {
         return function(script) {
-          return replaceSafe(_this.moduleTemplate).replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content).toString();
+          return _this.replaceSafe(_this.moduleTemplate).replace(/{{contextName}}/g, _this.contextName).replace(/{{currentModulePath}}/g, script.path).replace("{{currentModuleContent}}", script.content).toString();
         };
       })(this));
-      core = replaceSafe(this.coreTemplate).replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{entryData}}").replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder)).toString();
+      core = this.replaceSafe(this.coreTemplate).replace(/{{contextName}}/g, this.contextName).replace("{{modules}}", scripts.join(";\n")).replace("{{createContextProcedure}}", this.getPureFunctionProcedure("createBundleContext")).replace("{{entryData}}").replace("{{BundleBuilderCode}}", this.getPureClassCode(BundleBuilder)).toString();
       return [prefix, core, suffix].join(";\n");
     };
 
@@ -1051,7 +1078,7 @@ var URI = function(){
         } else {
           value = JSON.stringify(value);
         }
-        codes.push(replaceSafe(template).replace("{{prop}}", prop).replace("{{value}}", value).toString());
+        codes.push(this.replaceSafe(template).replace("{{prop}}", prop).replace("{{value}}", value).toString());
       }
       return className + " = " + (constructor.toString()) + "\n" + (codes.join("\n"));
     };
