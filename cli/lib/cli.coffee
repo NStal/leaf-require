@@ -51,6 +51,11 @@ files = wrench.readdirSyncRecursive jsIncludePath
 fileWhiteList = [/\.js$/i]
 files = files.filter (file)->
     filePath = pathModule.resolve pathModule.join jsIncludePath,file
+    try
+        if not fs.statSync(filePath).isFile()
+            return false
+    catch e
+        return false
     for include in includes
         includePath = pathModule.resolve include
         if filePath is includePath or filePath.indexOf(includePath+"/") is 0
