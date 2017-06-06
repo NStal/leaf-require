@@ -1,6 +1,6 @@
 {
   "name": "leaf-require",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A experimental lib allow you use nodejs style sync require in browser without precompile ... written in coffee.",
   "main": "bestPractice.js",
   "directories": {
