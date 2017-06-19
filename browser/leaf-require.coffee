@@ -418,7 +418,7 @@ class Script
     \n//# sourceMappingURL=#{mapDataUrl}
         """
         @script = script
-        script.innerHTML = code
+        script.text = code
         document.body.appendChild(script)
     createSourceMapUrl:(content,offset = 11)->
         map = {
@@ -650,7 +650,7 @@ class BundleBuilder
         name = "_#{random}#{@contextName}FakeWorkerEnd"
         self[name] = fakeWorker.guestend
         script = document.createElement("script")
-        script.innerHTML = code
+        script.text = code
         script.setAttribute("worker",name)
         setTimeout ()->
             document.body.appendChild script

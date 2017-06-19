@@ -634,7 +634,7 @@ var URI = function(){
         code += "\n//# sourceMappingURL=" + mapDataUrl;
       }
       this.script = script;
-      script.innerHTML = code;
+      script.text = code;
       return document.body.appendChild(script);
     };
 
@@ -1010,7 +1010,7 @@ var URI = function(){
       name = "_" + random + this.contextName + "FakeWorkerEnd";
       self[name] = fakeWorker.guestend;
       script = document.createElement("script");
-      script.innerHTML = code;
+      script.text = code;
       script.setAttribute("worker", name);
       setTimeout(function() {
         return document.body.appendChild(script);
