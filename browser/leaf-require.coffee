@@ -470,7 +470,7 @@ class Context.BestPractice
                     if callback
                         callback()
                     else
-                        @context.require @entry
+                        @requireEntry()
             return
         @context.restoreCache()
         if @context.hasConfiged
@@ -482,7 +482,7 @@ class Context.BestPractice
                     @errorHint()
                     return
                 setTimeout @checkVerionUpdate.bind(this),0
-                @context.require @entry
+                @requireEntry()
                 return
         else
             @context.loadConfig @config,(err)=>
@@ -494,8 +494,12 @@ class Context.BestPractice
                         @errorHint()
                         return
                     @context.saveCache()
-                    @context.require @entry
-
+                    @requireEntry()
+    requireEntry:()->
+        if @context?.store?.config?.js?.main
+            @context.require @context?.store?.config?.js?.main
+        else
+            @context.require(@entry)
     errorHint:()->
         alert "Fail to load application, please reload the webpage. If not work, please contact admin."
     updateConfirm:(callback)->

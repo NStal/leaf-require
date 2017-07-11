@@ -714,7 +714,7 @@ var URI = function(){
               if (callback) {
                 return callback();
               } else {
-                return _this.context.require(_this.entry);
+                return _this.requireEntry();
               }
             });
           };
@@ -734,7 +734,7 @@ var URI = function(){
               return;
             }
             setTimeout(_this.checkVerionUpdate.bind(_this), 0);
-            _this.context.require(_this.entry);
+            _this.requireEntry();
           };
         })(this));
       } else {
@@ -750,10 +750,19 @@ var URI = function(){
                 return;
               }
               _this.context.saveCache();
-              return _this.context.require(_this.entry);
+              return _this.requireEntry();
             });
           };
         })(this));
+      }
+    };
+
+    BestPractice.prototype.requireEntry = function() {
+      var ref, ref1, ref2, ref3, ref4, ref5, ref6, ref7;
+      if ((ref = this.context) != null ? (ref1 = ref.store) != null ? (ref2 = ref1.config) != null ? (ref3 = ref2.js) != null ? ref3.main : void 0 : void 0 : void 0 : void 0) {
+        return this.context.require((ref4 = this.context) != null ? (ref5 = ref4.store) != null ? (ref6 = ref5.config) != null ? (ref7 = ref6.js) != null ? ref7.main : void 0 : void 0 : void 0 : void 0);
+      } else {
+        return this.context.require(this.entry);
       }
     };
 
